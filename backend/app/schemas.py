@@ -5,8 +5,8 @@ class AnalyzeRequest(BaseModel):
     repo_url: HttpUrl
     selected_phases: list[str]
     work_id: str | None = None
-    provider: str = "openrouter"
-    model: str = "openrouter/free"
+    provider: str = "anthropic"
+    model: str = "claude-sonnet-5"
     api_key: str
 
 
@@ -22,4 +22,4 @@ class AnalyzeResponse(BaseModel):
     low_level_design: str
     implementation_detail: str
     testing_harness: str
-    future_directions: str 
+    future_directions: str
