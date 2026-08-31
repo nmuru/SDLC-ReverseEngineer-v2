@@ -1,13 +1,16 @@
-"""Claude Agent SDK phase runner for repository reverse engineering."""
+"""OpenAI Agents SDK phase runner for repository reverse engineering."""
 
 import asyncio
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
 from typing import Optional
 
-from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
+from agents import Agent, Runner, function_tool
+from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 
@@ -20,142 +23,136 @@ class AgentRunnerError(RuntimeError):
 
 
 def _clone_repository(repo_url: str, workspace: Path) -> Path:
-    """Clone the target repository into an isolated temporary workspace."""
     repository = workspace / "target-repository"
     if repository.exists():
         shutil.rmtree(repository, ignore_errors=True)
-
     result = subprocess.run(
         ["git", "clone", "--depth", "1", repo_url.strip(), str(repository)],
-        capture_output=True,
-        text=True,
-        encoding="utf-8",
-        errors="replace",
-        check=False,
+        capture_output=True, text=True, encoding="utf-8", errors="replace", check=False,
     )
     if result.returncode != 0:
-        raise AgentRunnerError(
-            "Could not clone the target repository: " + result.stderr.strip()[:2000]
-        )
+        raise AgentRunnerError("Could not clone the target repository: " + result.stderr.strip()[:2000])
     return repository
 
 
-def _install_project_skills(repository: Path) -> None:
-    """Expose the existing phase skills through the Claude Agent SDK layout."""
+def _read_skill(phase: str) -> str:
     if not OPENCODE_SKILLS_SOURCE.exists():
-        return
+        return ""
+    candidates = [
+        OPENCODE_SKILLS_SOURCE / phase / "SKILL.md",
+        OPENCODE_SKILLS_SOURCE / f"{phase}.md",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8", errors="replace")
+    return ""
 
-    destination = repository / ".claude" / "skills"
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(OPENCODE_SKILLS_SOURCE, destination, dirs_exist_ok=True)
+
+def _build_tools(repository: Path):
+    root = repository.resolve()
+
+    def safe_path(relative_path: str) -> Path:
+        path = (root / relative_path).resolve()
+        if path != root and root not in path.parents:
+            raise ValueError("Path must remain inside the repository")
+        return path
+
+    @function_tool
+    def list_files(path: str = ".", max_entries: int = 300) -> str:
+        """List repository files and directories recursively, without modifying anything."""
+        target = safe_path(path)
+        if not target.exists():
+            return "Path does not exist."
+        entries = []
+        for item in target.rglob("*"):
+            if ".git" in item.parts:
+                continue
+            entries.append(str(item.relative_to(root)))
+            if len(entries) >= max_entries:
+                entries.append("[truncated]")
+                break
+        return "\n".join(entries)
+
+    @function_tool
+    def read_file(path: str, max_chars: int = 30000) -> str:
+        """Read a UTF-8 text file from the repository. Use this to inspect source and configuration files."""
+        target = safe_path(path)
+        if not target.is_file():
+            return "File does not exist or is not a regular file."
+        try:
+            return target.read_text(encoding="utf-8", errors="replace")[:max_chars]
+        except OSError as exc:
+            return f"Could not read file: {exc}"
+
+    @function_tool
+    def search_repository(query: str, max_results: int = 100) -> str:
+        """Search repository text files for a literal string and return matching file paths and lines."""
+        matches = []
+        for item in root.rglob("*"):
+            if ".git" in item.parts or not item.is_file():
+                continue
+            try:
+                with item.open("r", encoding="utf-8", errors="replace") as handle:
+                    for line_number, line in enumerate(handle, start=1):
+                        if query.lower() in line.lower():
+                            matches.append(f"{item.relative_to(root)}:{line_number}: {line.rstrip()}")
+                            if len(matches) >= max_results:
+                                return "\n".join(matches + ["[truncated]"])
+            except OSError:
+                continue
+        return "\n".join(matches) if matches else "No matches found."
+
+    return [list_files, read_file, search_repository]
 
 
-async def _run_agent(
-    *,
-    phase: str,
-    phase_name: str,
-    repository: Path,
-    model: str,
-    api_key: str,
-    previous_output: Optional[str],
-) -> str:
-    handoff_context = ""
+async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
+    provider_name = provider.strip().lower()
+    if provider_name == "openrouter":
+        base_url = "https://openrouter.ai/api/v1"
+    elif provider_name == "openai":
+        base_url = "https://api.openai.com/v1"
+    else:
+        raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
+
+    skill = _read_skill(phase)
+    handoff = ""
     if previous_output:
-        handoff_context = (
-            "\n\nPrevious phase output is provided below as supporting context. "
-            "Verify important claims against the repository rather than accepting it blindly.\n\n"
-            + previous_output
-        )
+        handoff = "\n\nPrevious phase output is supporting context only. Verify important claims against repository evidence.\n\n" + previous_output[:20000]
 
-    prompt = f"""
-Perform the \"{phase_name}\" phase of the repository reverse-engineering workflow.
+    instructions = f"""You are performing the {phase_name} phase of an evidence-driven SDLC reverse-engineering workflow.
+The tools provide read-only access to the cloned repository. Inspect the repository directly before drawing conclusions. Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
 
-This is a read-only documentation task. The current working directory is a clone
-of the target repository. Inspect the repository directly using the available
-read-only tools. Do not modify repository files.
+Follow this phase methodology:\n{skill or 'Inspect the repository and produce rigorous documentation for the requested phase.'}
 
-Load and follow the phase-specific skill named \"{phase}\" before beginning the
-analysis. The skill defines the investigation workflow and documentation output
-requirements.
+Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, or execution process.""" + handoff
 
-Treat repository evidence as authoritative. Complete the full phase analysis.
-
-FINAL OUTPUT:
-Return only the complete final SDLC documentation for this phase as normal
-Markdown. Do not wrap the documentation in JSON and do not add a response
-envelope. Mermaid diagrams, tables, lists, headings, and code blocks are allowed
-when appropriate.
-""".strip() + handoff_context
-
-    options = ClaudeAgentOptions(
-        model=model.strip(),
-        cwd=repository,
-        setting_sources=["project"],
-        skills=[phase],
-        allowed_tools=["Read", "Glob", "Grep", "Bash"],
-        disallowed_tools=["Write", "Edit"],
-        permission_mode="bypassPermissions",
-        env={
-            "ANTHROPIC_API_KEY": api_key.strip(),
-            "CLAUDE_CODE_DISABLE_AUTO_MEMORY": "1",
-        },
+    client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
+    agent = Agent(
+        name=f"SDLC {phase_name}",
+        instructions=instructions,
+        model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
+        tools=_build_tools(repository),
     )
-
-    final_result: Optional[str] = None
-    async for message in query(prompt=prompt, options=options):
-        if isinstance(message, ResultMessage):
-            if message.subtype != "success":
-                raise AgentRunnerError(
-                    f"Claude Agent SDK failed phase '{phase}' with result "
-                    f"subtype '{message.subtype}'."
-                )
-            final_result = message.result
-
-    if not final_result or not final_result.strip():
-        raise AgentRunnerError(
-            f"Claude Agent SDK completed phase '{phase}' but returned no final output."
-        )
-
-    return final_result.strip()
+    result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.")
+    output = str(result.final_output or "").strip()
+    if not output:
+        raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
+    return output
 
 
-def run_phase_agent(
-    phase: str,
-    phase_name: str,
-    workspace: Path,
-    repo_url: str,
-    previous_output: Optional[str] = None,
-    provider: str = "anthropic",
-    model: str = "claude-sonnet-5",
-    api_key: Optional[str] = None,
-) -> str:
-    """Run one repository-analysis phase using the Claude Agent SDK."""
-    if provider.strip().lower() != "anthropic":
-        raise AgentRunnerError(
-            f"Unsupported provider '{provider}'. This backend currently uses the Claude Agent SDK and supports Anthropic API authentication."
-        )
+def run_phase_agent(phase: str, phase_name: str, workspace: Path, repo_url: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> str:
+    """Run one repository-analysis phase using the OpenAI Agents SDK."""
     if not api_key or not api_key.strip():
-        raise AgentRunnerError("An Anthropic API key is required.")
-
+        raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
     workspace.mkdir(parents=True, exist_ok=True)
     repository = _clone_repository(repo_url, workspace)
-    _install_project_skills(repository)
-
     try:
-        return asyncio.run(
-            _run_agent(
-                phase=phase,
-                phase_name=phase_name,
-                repository=repository,
-                model=model,
-                api_key=api_key,
-                previous_output=previous_output,
-            )
-        )
+        return asyncio.run(_run_agent(
+            phase=phase, phase_name=phase_name, repository=repository,
+            model=model, api_key=api_key, provider=provider, previous_output=previous_output,
+        ))
     except AgentRunnerError:
         raise
     except Exception as exc:
-        logger.exception("Claude Agent SDK failed during phase %s", phase)
-        raise AgentRunnerError(
-            f"Claude Agent SDK failed during phase '{phase}': {exc}"
-        ) from exc
+        logger.exception("OpenAI Agents SDK failed during phase %s", phase)
+        raise AgentRunnerError(f"OpenAI Agents SDK failed during phase '{phase}': {exc}") from exc
