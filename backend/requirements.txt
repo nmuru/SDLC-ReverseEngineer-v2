@@ -3,4 +3,4 @@ uvicorn[standard]
 pydantic-settings
 httpx
 requests
-claude-agent-sdk>=0.2.90
+openai-agents
