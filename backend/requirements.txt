@@ -1,6 +1,6 @@
 fastapi
 uvicorn[standard]
 pydantic-settings
-ollama
 httpx
 requests
+claude-agent-sdk>=0.2.90
