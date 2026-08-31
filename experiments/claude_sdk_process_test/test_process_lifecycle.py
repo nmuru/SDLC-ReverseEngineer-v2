@@ -1,8 +1,14 @@
-"""Independent Claude Agent SDK process-lifecycle experiment.
+"""Independent Claude Agent SDK process-lifecycle and OpenRouter experiment.
 
 This script intentionally contains no ReverseEngineer-SDLC application code.
-It measures whether one ClaudeSDKClient starts child processes and whether
-those processes are reused across several sequential queries.
+It tests two questions together:
+
+1. Does one long-lived ClaudeSDKClient launch child processes that are reused
+   across several sequential queries?
+2. Can the Claude Agent SDK route those queries to a non-Anthropic model through
+   OpenRouter's Anthropic-compatible Messages API?
+
+No API key is stored in this file. Configure the environment before running.
 """
 
 import asyncio
@@ -13,6 +19,9 @@ from typing import Iterable
 import psutil
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
 
+
+OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL")
 
 PROMPTS = [
     "Reply with exactly: query-one",
@@ -74,8 +83,6 @@ async def run_query(client: ClaudeSDKClient, prompt: str, number: int) -> None:
     response_count = 0
     async for message in client.receive_response():
         response_count += 1
-        # Avoid dumping full SDK objects; we only need enough evidence that
-        # the request completed and the client remained usable.
         text = getattr(message, "result", None)
         if text:
             print(f"RESULT: {text}")
@@ -84,16 +91,41 @@ async def run_query(client: ClaudeSDKClient, prompt: str, number: int) -> None:
 
 
 async def main() -> None:
-    print("Claude Agent SDK process-lifecycle experiment")
+    if not OPENROUTER_API_KEY:
+        raise RuntimeError(
+            "OPENROUTER_API_KEY is not set. Set it in the shell before running this experiment."
+        )
+    if not OPENROUTER_MODEL:
+        raise RuntimeError(
+            "OPENROUTER_MODEL is not set. Set it to an exact OpenRouter model ID, "
+            "for example a currently available free model ID."
+        )
+
+    print("Claude Agent SDK process-lifecycle and OpenRouter experiment")
     print(f"Python executable: {sys.executable}")
     print(f"Python PID: {os.getpid()}")
+    print("Endpoint: https://openrouter.ai/api")
+    print(f"Requested model: {OPENROUTER_MODEL}")
+    print("API key present: yes (value intentionally not printed)")
     print("This process remains alive while all queries execute.")
 
     snapshot("before client construction")
 
+    # OpenRouter exposes an Anthropic-compatible Messages API at /api/v1/messages.
+    # Claude Code / the Agent SDK use the base URL https://openrouter.ai/api, and
+    # the model ID is passed through to the configured endpoint.
     options = ClaudeAgentOptions(
+        model=OPENROUTER_MODEL,
         permission_mode="bypassPermissions",
         allowed_tools=[],
+        env={
+            "ANTHROPIC_BASE_URL": "https://openrouter.ai/api",
+            "ANTHROPIC_AUTH_TOKEN": OPENROUTER_API_KEY,
+            # Explicitly blank this to avoid an Anthropic key taking precedence.
+            "ANTHROPIC_API_KEY": "",
+            "ANTHROPIC_MODEL": OPENROUTER_MODEL,
+            "ANTHROPIC_SMALL_FAST_MODEL": OPENROUTER_MODEL,
+        },
     )
 
     async with ClaudeSDKClient(options=options) as client:
