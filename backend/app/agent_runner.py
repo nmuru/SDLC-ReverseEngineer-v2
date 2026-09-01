@@ -113,14 +113,63 @@ def _preview(value: Any, limit: int = 800) -> str:
     return text[:limit] + ("...[truncated]" if len(text) > limit else "")
 
 
-def _summarize_item(item: Any) -> dict:
-    """Return compact diagnostics metadata without dumping large contents."""
-    data = {"type": type(item).__name__}
-    for attr in ("role", "type", "name", "call_id", "tool_call_id", "arguments", "output", "content"):
-        if hasattr(item, attr):
-            value = getattr(item, attr)
+def _extract_value(item: Any, *names: str) -> Any:
+    if isinstance(item, dict):
+        for name in names:
+            if item.get(name) is not None:
+                return item[name]
+    for name in names:
+        if hasattr(item, name):
+            value = getattr(item, name)
             if value is not None:
-                data[attr] = _preview(value, 800)
+                return value
+    return None
+
+
+def _summarize_item(item: Any) -> dict:
+    """Return compact diagnostics metadata without dumping full repository contents."""
+    data = {"python_type": type(item).__name__}
+    item_type = _extract_value(item, "type")
+    role = _extract_value(item, "role")
+    if item_type is not None:
+        data["type"] = str(item_type)
+    if role is not None:
+        data["role"] = str(role)
+
+    name = _extract_value(item, "name")
+    call_id = _extract_value(item, "call_id", "tool_call_id")
+    arguments = _extract_value(item, "arguments")
+    output = _extract_value(item, "output")
+    content = _extract_value(item, "content")
+
+    if name is not None:
+        data["name"] = str(name)
+    if call_id is not None:
+        data["call_id"] = str(call_id)
+    if arguments is not None:
+        data["arguments_chars"] = len(str(arguments))
+        data["arguments_preview"] = _preview(arguments, 300)
+    if output is not None:
+        data["output_chars"] = len(str(output))
+        data["output_preview"] = _preview(output, 400)
+    if content is not None:
+        data["content_chars"] = len(str(content))
+        data["content_preview"] = _preview(content, 400)
+
+    # Some SDK/provider items expose their payload only through serialization.
+    # Record safe top-level metadata so dict inputs are no longer anonymous.
+    if isinstance(item, dict):
+        data["keys"] = sorted(str(key) for key in item.keys())
+        for key in ("function", "tool_calls", "tool_call"):
+            if key in item and key not in data:
+                value = item[key]
+                data[f"{key}_chars"] = len(str(value))
+                data[f"{key}_preview"] = _preview(value, 400)
+    else:
+        raw = getattr(item, "__dict__", None)
+        if isinstance(raw, dict):
+            data["keys"] = sorted(str(key) for key in raw.keys() if not str(key).startswith("_"))
+
     return data
 
 
@@ -277,21 +326,3 @@ Return only complete professional Markdown documentation for this phase. Do not 
         )
         raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
     return output
-
-
-def run_phase_agent(phase: str, phase_name: str, workspace: Path, repo_url: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> str:
-    """Run one repository-analysis phase using the OpenAI Agents SDK."""
-    if not api_key or not api_key.strip():
-        raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
-    workspace.mkdir(parents=True, exist_ok=True)
-    repository = _clone_repository(repo_url, workspace)
-    try:
-        return asyncio.run(_run_agent(
-            phase=phase, phase_name=phase_name, repository=repository,
-            model=model, api_key=api_key, provider=provider, previous_output=previous_output,
-        ))
-    except AgentRunnerError:
-        raise
-    except Exception as exc:
-        logger.exception("OpenAI Agents SDK failed during phase %s", phase)
-        raise AgentRunnerError(f"OpenAI Agents SDK failed during phase '{phase}': {exc}") from exc
