@@ -1,10 +1,13 @@
 """OpenAI Agents SDK phase runner for repository reverse engineering."""
 
 import asyncio
+import json
 import logging
 import os
 import shutil
 import subprocess
+import time
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -105,6 +108,23 @@ def _build_tools(repository: Path):
     return [list_files, read_file, search_repository]
 
 
+def _summarize_item(item) -> dict:
+    """Return compact diagnostics metadata without dumping large contents."""
+    item_type = type(item).__name__
+    data = {"type": item_type}
+    for attr in ("raw_item", "item", "output", "name", "arguments"):
+        if hasattr(item, attr):
+            value = getattr(item, attr)
+            if attr == "arguments" and isinstance(value, str):
+                data[attr] = value[:1000]
+            elif attr in {"name"}:
+                data[attr] = str(value)
+            elif attr in {"output"}:
+                text = str(value)
+                data[attr] = text[:500]
+    return data
+
+
 async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
@@ -133,9 +153,37 @@ Return only complete professional Markdown documentation for this phase. Do not 
         model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
         tools=_build_tools(repository),
     )
+
+    trace_id = uuid.uuid4().hex[:12]
+    started = time.perf_counter()
+    logger.warning(
+        "AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s",
+        trace_id, phase, model, provider_name, repository,
+    )
+
     result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.")
+
+    elapsed = time.perf_counter() - started
+    usage = getattr(result, "context_wrapper", None)
+    usage_info = getattr(getattr(usage, "usage", None), "requests", None)
+    new_items = getattr(result, "new_items", []) or []
+    raw_responses = getattr(result, "raw_responses", []) or []
+    logger.warning(
+        "AGENT_DIAG end trace_id=%s phase=%s elapsed_s=%.3f new_items=%d raw_responses=%d request_usage=%s",
+        trace_id, phase, elapsed, len(new_items), len(raw_responses), usage_info,
+    )
+    for index, item in enumerate(new_items):
+        logger.warning(
+            "AGENT_DIAG item trace_id=%s index=%d details=%s",
+            trace_id, index, json.dumps(_summarize_item(item), ensure_ascii=False, default=str),
+        )
+
     output = str(result.final_output or "").strip()
     if not output:
+        logger.warning(
+            "AGENT_DIAG empty_final_output trace_id=%s phase=%s new_items=%d raw_responses=%d",
+            trace_id, phase, len(new_items), len(raw_responses),
+        )
         raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
     return output
 
