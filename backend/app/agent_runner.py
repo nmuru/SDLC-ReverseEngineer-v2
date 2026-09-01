@@ -127,7 +127,6 @@ def _extract_value(item: Any, *names: str) -> Any:
 
 
 def _summarize_item(item: Any) -> dict:
-    """Return compact diagnostics metadata without dumping full repository contents."""
     data = {"python_type": type(item).__name__}
     item_type = _extract_value(item, "type")
     role = _extract_value(item, "role")
@@ -135,13 +134,11 @@ def _summarize_item(item: Any) -> dict:
         data["type"] = str(item_type)
     if role is not None:
         data["role"] = str(role)
-
     name = _extract_value(item, "name")
     call_id = _extract_value(item, "call_id", "tool_call_id")
     arguments = _extract_value(item, "arguments")
     output = _extract_value(item, "output")
     content = _extract_value(item, "content")
-
     if name is not None:
         data["name"] = str(name)
     if call_id is not None:
@@ -155,13 +152,10 @@ def _summarize_item(item: Any) -> dict:
     if content is not None:
         data["content_chars"] = len(str(content))
         data["content_preview"] = _preview(content, 400)
-
-    # Some SDK/provider items expose their payload only through serialization.
-    # Record safe top-level metadata so dict inputs are no longer anonymous.
     if isinstance(item, dict):
         data["keys"] = sorted(str(key) for key in item.keys())
         for key in ("function", "tool_calls", "tool_call"):
-            if key in item and key not in data:
+            if key in item:
                 value = item[key]
                 data[f"{key}_chars"] = len(str(value))
                 data[f"{key}_preview"] = _preview(value, 400)
@@ -169,13 +163,10 @@ def _summarize_item(item: Any) -> dict:
         raw = getattr(item, "__dict__", None)
         if isinstance(raw, dict):
             data["keys"] = sorted(str(key) for key in raw.keys() if not str(key).startswith("_"))
-
     return data
 
 
 class AgentDiagnosticsHooks(RunHooks):
-    """Logs every SDK lifecycle event, including failed runs."""
-
     def __init__(self, trace_id: str, phase: str):
         self.trace_id = trace_id
         self.phase = phase
@@ -185,65 +176,23 @@ class AgentDiagnosticsHooks(RunHooks):
     async def on_llm_start(self, context, agent, system_prompt, input_items) -> None:
         self.llm_turn += 1
         summaries = [_summarize_item(item) for item in input_items]
-        logger.warning(
-            "AGENT_DIAG llm_start trace_id=%s phase=%s turn=%d input_items=%d system_prompt_chars=%d input=%s",
-            self.trace_id,
-            self.phase,
-            self.llm_turn,
-            len(input_items),
-            len(system_prompt or ""),
-            json.dumps(summaries, ensure_ascii=False, default=str),
-        )
+        logger.warning("AGENT_DIAG llm_start trace_id=%s phase=%s turn=%d input_items=%d system_prompt_chars=%d input=%s", self.trace_id, self.phase, self.llm_turn, len(input_items), len(system_prompt or ""), json.dumps(summaries, ensure_ascii=False, default=str))
 
     async def on_llm_end(self, context, agent, response) -> None:
         output_items = getattr(response, "output", []) or []
         summaries = [_summarize_item(item) for item in output_items]
         usage = getattr(context, "usage", None)
-        logger.warning(
-            "AGENT_DIAG llm_end trace_id=%s phase=%s turn=%d output_items=%d usage_requests=%s output=%s",
-            self.trace_id,
-            self.phase,
-            self.llm_turn,
-            len(output_items),
-            getattr(usage, "requests", None),
-            json.dumps(summaries, ensure_ascii=False, default=str),
-        )
+        logger.warning("AGENT_DIAG llm_end trace_id=%s phase=%s turn=%d output_items=%d usage_requests=%s output=%s", self.trace_id, self.phase, self.llm_turn, len(output_items), getattr(usage, "requests", None), json.dumps(summaries, ensure_ascii=False, default=str))
 
     async def on_tool_start(self, context, agent, tool) -> None:
         self.tool_calls += 1
-        logger.warning(
-            "AGENT_DIAG tool_start trace_id=%s phase=%s turn=%d tool_index=%d tool=%s call_id=%s arguments=%s",
-            self.trace_id,
-            self.phase,
-            self.llm_turn,
-            self.tool_calls,
-            getattr(tool, "name", type(tool).__name__),
-            getattr(context, "tool_call_id", None),
-            _preview(getattr(context, "tool_arguments", None), 1000),
-        )
+        logger.warning("AGENT_DIAG tool_start trace_id=%s phase=%s turn=%d tool_index=%d tool=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, getattr(tool, "name", type(tool).__name__))
 
     async def on_tool_end(self, context, agent, tool, result) -> None:
-        logger.warning(
-            "AGENT_DIAG tool_end trace_id=%s phase=%s turn=%d tool_index=%d tool=%s call_id=%s result_chars=%d result_preview=%s",
-            self.trace_id,
-            self.phase,
-            self.llm_turn,
-            self.tool_calls,
-            getattr(tool, "name", type(tool).__name__),
-            getattr(context, "tool_call_id", None),
-            len(str(result)),
-            _preview(result, 1200),
-        )
+        logger.warning("AGENT_DIAG tool_end trace_id=%s phase=%s turn=%d tool_index=%d tool=%s result_chars=%d result_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, getattr(tool, "name", type(tool).__name__), len(str(result)), _preview(result, 1200))
 
     async def on_agent_end(self, context, agent, output) -> None:
-        logger.warning(
-            "AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s",
-            self.trace_id,
-            self.phase,
-            self.llm_turn,
-            self.tool_calls,
-            _preview(output, 1000),
-        )
+        logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
 async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
@@ -266,63 +215,34 @@ The tools provide read-only access to the cloned repository. Inspect the reposit
 Follow this phase methodology:\n{skill or 'Inspect the repository and produce rigorous documentation for the requested phase.'}
 
 Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, or execution process.""" + handoff
-
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
-    agent = Agent(
-        name=f"SDLC {phase_name}",
-        instructions=instructions,
-        model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
-        tools=_build_tools(repository),
-    )
+    agent = Agent(name=f"SDLC {phase_name}", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_tools(repository))
 
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
-    logger.warning(
-        "AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s",
-        trace_id, phase, model, provider_name, repository,
-    )
-
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s", trace_id, phase, model, provider_name, repository)
     try:
-        result = await Runner.run(
-            agent,
-            "Analyze the repository and produce the requested phase documentation.",
-            hooks=hooks,
-        )
+        result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks)
     except Exception as exc:
-        elapsed = time.perf_counter() - started
-        logger.warning(
-            "AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s",
-            trace_id,
-            phase,
-            elapsed,
-            hooks.llm_turn,
-            hooks.tool_calls,
-            type(exc).__name__,
-            str(exc),
-        )
+        logger.warning("AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s", trace_id, phase, time.perf_counter() - started, hooks.llm_turn, hooks.tool_calls, type(exc).__name__, str(exc))
         raise
-
-    elapsed = time.perf_counter() - started
-    usage = getattr(result, "context_wrapper", None)
-    usage_info = getattr(getattr(usage, "usage", None), "requests", None)
-    new_items = getattr(result, "new_items", []) or []
-    raw_responses = getattr(result, "raw_responses", []) or []
-    logger.warning(
-        "AGENT_DIAG end trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d new_items=%d raw_responses=%d request_usage=%s",
-        trace_id, phase, elapsed, hooks.llm_turn, hooks.tool_calls, len(new_items), len(raw_responses), usage_info,
-    )
-    for index, item in enumerate(new_items):
-        logger.warning(
-            "AGENT_DIAG item trace_id=%s index=%d details=%s",
-            trace_id, index, json.dumps(_summarize_item(item), ensure_ascii=False, default=str),
-        )
-
     output = str(result.final_output or "").strip()
     if not output:
-        logger.warning(
-            "AGENT_DIAG empty_final_output trace_id=%s phase=%s new_items=%d raw_responses=%d",
-            trace_id, phase, len(new_items), len(raw_responses),
-        )
         raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
     return output
+
+
+def run_phase_agent(phase: str, phase_name: str, workspace: Path, repo_url: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> str:
+    """Run one repository-analysis phase using the OpenAI Agents SDK."""
+    if not api_key or not api_key.strip():
+        raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
+    workspace.mkdir(parents=True, exist_ok=True)
+    repository = _clone_repository(repo_url, workspace)
+    try:
+        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
+    except AgentRunnerError:
+        raise
+    except Exception as exc:
+        logger.exception("OpenAI Agents SDK failed during phase %s", phase)
+        raise AgentRunnerError(f"OpenAI Agents SDK failed during phase '{phase}': {exc}") from exc
