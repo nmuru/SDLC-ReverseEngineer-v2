@@ -3,7 +3,6 @@
 import asyncio
 import json
 import logging
-import os
 import shutil
 import subprocess
 import time
@@ -14,6 +13,8 @@ from typing import Any, Optional
 from agents import Agent, Runner, RunHooks, function_tool
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
+
+from .repository_intelligence import build_repository_intelligence, intelligence_for_prompt
 
 logger = logging.getLogger(__name__)
 
@@ -41,10 +42,7 @@ def _clone_repository(repo_url: str, workspace: Path) -> Path:
 def _read_skill(phase: str) -> str:
     if not OPENCODE_SKILLS_SOURCE.exists():
         return ""
-    candidates = [
-        OPENCODE_SKILLS_SOURCE / phase / "SKILL.md",
-        OPENCODE_SKILLS_SOURCE / f"{phase}.md",
-    ]
+    candidates = [OPENCODE_SKILLS_SOURCE / phase / "SKILL.md", OPENCODE_SKILLS_SOURCE / f"{phase}.md"]
     for candidate in candidates:
         if candidate.is_file():
             return candidate.read_text(encoding="utf-8", errors="replace")
@@ -78,7 +76,7 @@ def _build_tools(repository: Path):
 
     @function_tool
     def read_file(path: str, max_chars: int = 30000) -> str:
-        """Read a UTF-8 text file from the repository. Use this to inspect source and configuration files."""
+        """Read a UTF-8 text file from the repository. Use this for conditional follow-up evidence not already present in deterministic intelligence."""
         target = safe_path(path)
         if not target.is_file():
             return "File does not exist or is not a regular file."
@@ -89,7 +87,7 @@ def _build_tools(repository: Path):
 
     @function_tool
     def search_repository(query: str, max_results: int = 100) -> str:
-        """Search repository text files for a literal string and return matching file paths and lines."""
+        """Search repository text for conditional follow-up evidence not already present in deterministic intelligence."""
         matches = []
         for item in root.rglob("*"):
             if ".git" in item.parts or not item.is_file():
@@ -195,7 +193,7 @@ class AgentDiagnosticsHooks(RunHooks):
         logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
-async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
+async def _run_agent(*, phase: str, phase_name: str, repository: Path, repo_url: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
         base_url = "https://openrouter.ai/api/v1"
@@ -205,23 +203,29 @@ async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: st
         raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
 
     skill = _read_skill(phase)
+    intelligence = build_repository_intelligence(repository, repo_url)
+    intelligence_context = intelligence_for_prompt(intelligence)
     handoff = ""
     if previous_output:
         handoff = "\n\nPrevious phase output is supporting context only. Verify important claims against repository evidence.\n\n" + previous_output[:20000]
 
     instructions = f"""You are performing the {phase_name} phase of an evidence-driven SDLC reverse-engineering workflow.
-The tools provide read-only access to the cloned repository. Inspect the repository directly before drawing conclusions. Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
+The repository has already undergone deterministic common discovery. The repository intelligence below is evidence collected before your analysis. Use it as your starting context and do not repeat routine discovery such as listing the entire repository or reading metadata already supplied.
+
+{intelligence_context}
 
 Follow this phase methodology:\n{skill or 'Inspect the repository and produce rigorous documentation for the requested phase.'}
 
-Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, or execution process.""" + handoff
+Use repository tools only for conditional follow-up investigation needed to resolve evidence gaps or inspect implementation details relevant to this phase. Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
+
+Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, deterministic pre-analysis, or execution process.""" + handoff
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
     agent = Agent(name=f"SDLC {phase_name}", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_tools(repository))
 
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
-    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s", trace_id, phase, model, provider_name, repository)
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d", trace_id, phase, model, provider_name, repository, len(intelligence_context))
     try:
         result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks)
     except Exception as exc:
@@ -240,7 +244,7 @@ def run_phase_agent(phase: str, phase_name: str, workspace: Path, repo_url: str,
     workspace.mkdir(parents=True, exist_ok=True)
     repository = _clone_repository(repo_url, workspace)
     try:
-        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
+        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, repo_url=repo_url, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
     except AgentRunnerError:
         raise
     except Exception as exc:
