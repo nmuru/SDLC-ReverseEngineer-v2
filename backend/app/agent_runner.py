@@ -9,9 +9,9 @@ import subprocess
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
-from agents import Agent, Runner, function_tool
+from agents import Agent, Runner, RunHooks, function_tool
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
 
@@ -108,21 +108,93 @@ def _build_tools(repository: Path):
     return [list_files, read_file, search_repository]
 
 
-def _summarize_item(item) -> dict:
+def _preview(value: Any, limit: int = 800) -> str:
+    text = str(value).replace("\n", "\\n")
+    return text[:limit] + ("...[truncated]" if len(text) > limit else "")
+
+
+def _summarize_item(item: Any) -> dict:
     """Return compact diagnostics metadata without dumping large contents."""
-    item_type = type(item).__name__
-    data = {"type": item_type}
-    for attr in ("raw_item", "item", "output", "name", "arguments"):
+    data = {"type": type(item).__name__}
+    for attr in ("role", "type", "name", "call_id", "tool_call_id", "arguments", "output", "content"):
         if hasattr(item, attr):
             value = getattr(item, attr)
-            if attr == "arguments" and isinstance(value, str):
-                data[attr] = value[:1000]
-            elif attr in {"name"}:
-                data[attr] = str(value)
-            elif attr in {"output"}:
-                text = str(value)
-                data[attr] = text[:500]
+            if value is not None:
+                data[attr] = _preview(value, 800)
     return data
+
+
+class AgentDiagnosticsHooks(RunHooks):
+    """Logs every SDK lifecycle event, including failed runs."""
+
+    def __init__(self, trace_id: str, phase: str):
+        self.trace_id = trace_id
+        self.phase = phase
+        self.llm_turn = 0
+        self.tool_calls = 0
+
+    async def on_llm_start(self, context, agent, system_prompt, input_items) -> None:
+        self.llm_turn += 1
+        summaries = [_summarize_item(item) for item in input_items]
+        logger.warning(
+            "AGENT_DIAG llm_start trace_id=%s phase=%s turn=%d input_items=%d system_prompt_chars=%d input=%s",
+            self.trace_id,
+            self.phase,
+            self.llm_turn,
+            len(input_items),
+            len(system_prompt or ""),
+            json.dumps(summaries, ensure_ascii=False, default=str),
+        )
+
+    async def on_llm_end(self, context, agent, response) -> None:
+        output_items = getattr(response, "output", []) or []
+        summaries = [_summarize_item(item) for item in output_items]
+        usage = getattr(context, "usage", None)
+        logger.warning(
+            "AGENT_DIAG llm_end trace_id=%s phase=%s turn=%d output_items=%d usage_requests=%s output=%s",
+            self.trace_id,
+            self.phase,
+            self.llm_turn,
+            len(output_items),
+            getattr(usage, "requests", None),
+            json.dumps(summaries, ensure_ascii=False, default=str),
+        )
+
+    async def on_tool_start(self, context, agent, tool) -> None:
+        self.tool_calls += 1
+        logger.warning(
+            "AGENT_DIAG tool_start trace_id=%s phase=%s turn=%d tool_index=%d tool=%s call_id=%s arguments=%s",
+            self.trace_id,
+            self.phase,
+            self.llm_turn,
+            self.tool_calls,
+            getattr(tool, "name", type(tool).__name__),
+            getattr(context, "tool_call_id", None),
+            _preview(getattr(context, "tool_arguments", None), 1000),
+        )
+
+    async def on_tool_end(self, context, agent, tool, result) -> None:
+        logger.warning(
+            "AGENT_DIAG tool_end trace_id=%s phase=%s turn=%d tool_index=%d tool=%s call_id=%s result_chars=%d result_preview=%s",
+            self.trace_id,
+            self.phase,
+            self.llm_turn,
+            self.tool_calls,
+            getattr(tool, "name", type(tool).__name__),
+            getattr(context, "tool_call_id", None),
+            len(str(result)),
+            _preview(result, 1200),
+        )
+
+    async def on_agent_end(self, context, agent, output) -> None:
+        logger.warning(
+            "AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s",
+            self.trace_id,
+            self.phase,
+            self.llm_turn,
+            self.tool_calls,
+            _preview(output, 1000),
+        )
 
 
 async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
@@ -155,13 +227,32 @@ Return only complete professional Markdown documentation for this phase. Do not 
     )
 
     trace_id = uuid.uuid4().hex[:12]
+    hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
     logger.warning(
         "AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s",
         trace_id, phase, model, provider_name, repository,
     )
 
-    result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.")
+    try:
+        result = await Runner.run(
+            agent,
+            "Analyze the repository and produce the requested phase documentation.",
+            hooks=hooks,
+        )
+    except Exception as exc:
+        elapsed = time.perf_counter() - started
+        logger.warning(
+            "AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s",
+            trace_id,
+            phase,
+            elapsed,
+            hooks.llm_turn,
+            hooks.tool_calls,
+            type(exc).__name__,
+            str(exc),
+        )
+        raise
 
     elapsed = time.perf_counter() - started
     usage = getattr(result, "context_wrapper", None)
@@ -169,8 +260,8 @@ Return only complete professional Markdown documentation for this phase. Do not 
     new_items = getattr(result, "new_items", []) or []
     raw_responses = getattr(result, "raw_responses", []) or []
     logger.warning(
-        "AGENT_DIAG end trace_id=%s phase=%s elapsed_s=%.3f new_items=%d raw_responses=%d request_usage=%s",
-        trace_id, phase, elapsed, len(new_items), len(raw_responses), usage_info,
+        "AGENT_DIAG end trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d new_items=%d raw_responses=%d request_usage=%s",
+        trace_id, phase, elapsed, hooks.llm_turn, hooks.tool_calls, len(new_items), len(raw_responses), usage_info,
     )
     for index, item in enumerate(new_items):
         logger.warning(
