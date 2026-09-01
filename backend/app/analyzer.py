@@ -1,6 +1,5 @@
 """Repository analysis orchestration."""
 
-import os
 import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -28,17 +27,6 @@ PHASES = [
 ]
 
 PhaseCompleteCallback = Callable[[dict], None]
-
-
-def _diagnostics_enabled() -> bool:
-    return os.getenv("REVERSE_ENGINEER_RESOURCE_DIAGNOSTICS", "false").strip().lower() in {"1", "true", "yes", "on"}
-
-
-def _diagnostics_interval() -> float:
-    try:
-        return max(float(os.getenv("REVERSE_ENGINEER_RESOURCE_SAMPLE_SECONDS", "2")), 0.25)
-    except ValueError:
-        return 2.0
 
 
 def _run_single_phase(
@@ -73,7 +61,13 @@ def _run_single_phase(
         phase_output_dir = output_run_dir / phase_key
         phase_output_dir.mkdir(parents=True, exist_ok=True)
         (phase_output_dir / "agent-output.md").write_text(raw_result, encoding="utf-8")
-        rendered_result = render_analysis(phase=phase_key, analysis=raw_result, provider=provider, model=model, api_key=api_key)
+        rendered_result = render_analysis(
+            phase=phase_key,
+            analysis=raw_result,
+            provider=provider,
+            model=model,
+            api_key=api_key,
+        )
         if not rendered_result.strip():
             raise RuntimeError(f"Renderer returned an empty result for phase '{phase_key}'.")
         raw_path = phase_output_dir / "raw.md"
@@ -93,6 +87,15 @@ def _run_single_phase(
         raise
 
 
+def _phase_failure(phase_key: str, phase_name: str, exc: Exception) -> dict:
+    return {
+        "phase": phase_key,
+        "phase_name": phase_name,
+        "error_type": type(exc).__name__,
+        "error": str(exc),
+    }
+
+
 def _run_batch(
     batch: list[tuple[str, str]],
     workspace: Path,
@@ -105,11 +108,14 @@ def _run_batch(
     api_key: str = "",
     diagnostics: Optional[ResourceDiagnostics] = None,
     batch_index: Optional[int] = None,
-) -> dict:
-    batch_results = {}
+) -> tuple[dict, list[dict]]:
+    batch_results: dict[str, dict] = {}
+    batch_failures: list[dict] = []
+    phase_by_future = {}
+
     with ThreadPoolExecutor(max_workers=len(batch)) as executor:
-        futures = {
-            executor.submit(
+        for key, name in batch:
+            future = executor.submit(
                 _run_single_phase,
                 key,
                 name,
@@ -122,21 +128,20 @@ def _run_batch(
                 api_key,
                 diagnostics,
                 batch_index,
-            ): key
-            for key, name in batch
-        }
-        first_error = None
-        for future in as_completed(futures):
+            )
+            phase_by_future[future] = (key, name)
+
+        for future in as_completed(phase_by_future):
+            key, name = phase_by_future[future]
             try:
                 result = future.result()
                 batch_results[result["phase"]] = result
                 if on_phase_complete:
                     on_phase_complete(result)
             except Exception as exc:
-                first_error = first_error or exc
-        if first_error:
-            raise first_error
-    return batch_results
+                batch_failures.append(_phase_failure(key, name, exc))
+
+    return batch_results, batch_failures
 
 
 def analyze_repository(
@@ -196,11 +201,13 @@ def analyze_repository(
     if duplicate:
         raise ValueError("selected_phases already completed: " + ", ".join(sorted(duplicate)))
 
-    diagnostics_dir = output_run_dir / "diagnostics"
+    diagnostics_dir = Path(settings.resource_diagnostics_dir)
+    if not diagnostics_dir.is_absolute():
+        diagnostics_dir = output_run_dir / diagnostics_dir
     diagnostics = ResourceDiagnostics(
-        enabled=_diagnostics_enabled(),
+        enabled=settings.resource_diagnostics_enabled,
         output_dir=diagnostics_dir,
-        sample_interval_seconds=_diagnostics_interval(),
+        sample_interval_seconds=settings.resource_diagnostics_interval_seconds,
         run_id=run_id,
     )
     diagnostics.start()
@@ -214,14 +221,16 @@ def analyze_repository(
         model=model,
     )
 
-    results = {}
+    results: dict[str, dict] = {}
+    failures: list[dict] = []
     try:
         with tempfile.TemporaryDirectory(prefix="reverse-engineer-") as tmp:
             workspace = Path(tmp)
             diagnostics.run_event("workspace_created", workspace=str(workspace))
+
             if batch_mode == "parallel":
                 with ThreadPoolExecutor(max_workers=len(batches)) as executor:
-                    futures = [
+                    futures = {
                         executor.submit(
                             _run_batch,
                             batch,
@@ -235,37 +244,38 @@ def analyze_repository(
                             api_key,
                             diagnostics,
                             index,
-                        )
+                        ): index
                         for index, batch in enumerate(batches, start=1)
-                    ]
-                    first_error = None
+                    }
                     for future in as_completed(futures):
-                        try:
-                            results.update(future.result())
-                        except Exception as exc:
-                            first_error = first_error or exc
-                    if first_error:
-                        raise first_error
+                        batch_results, batch_failures = future.result()
+                        results.update(batch_results)
+                        failures.extend(batch_failures)
             else:
                 for index, batch in enumerate(batches, start=1):
-                    results.update(
-                        _run_batch(
-                            batch,
-                            workspace,
-                            repo_url,
-                            output_run_dir,
-                            run_id,
-                            on_phase_complete,
-                            provider,
-                            model,
-                            api_key,
-                            diagnostics,
-                            index,
-                        )
+                    batch_results, batch_failures = _run_batch(
+                        batch,
+                        workspace,
+                        repo_url,
+                        output_run_dir,
+                        run_id,
+                        on_phase_complete,
+                        provider,
+                        model,
+                        api_key,
+                        diagnostics,
+                        index,
                     )
+                    results.update(batch_results)
+                    failures.extend(batch_failures)
+
         create_download_package(output_run_dir)
-        diagnostics.run_event("analysis_completed", completed_phases=list(results))
-        return {"run_id": run_id, "results": results}
+        diagnostics.run_event(
+            "analysis_completed",
+            completed_phases=list(results),
+            failed_phases=[failure["phase"] for failure in failures],
+        )
+        return {"run_id": run_id, "results": results, "failures": failures}
     except Exception as exc:
         diagnostics.run_event("analysis_failed", error_type=type(exc).__name__, error=str(exc))
         raise
