@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, Optional
 
-from .agent_runner import clone_repository, repository_size_bytes, run_phase_agent
+from .agent_runner import clone_repository, github_repository_size_bytes, repository_size_bytes, run_phase_agent
 from .config import settings
 from .exporter import create_download_package
 from .phase_intelligence import build_phase_intelligence
@@ -29,6 +29,13 @@ PHASES = [
 ]
 
 PhaseCompleteCallback = Callable[[dict], None]
+
+
+def _repository_size_limit_error() -> ValueError:
+    return ValueError(
+        f"This app does not support repositories larger than {settings.max_repository_size_mb} MB. "
+        "We hope to enhance support for larger repositories later."
+    )
 
 
 def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_intelligence: str, output_run_dir: Path, run_id: str, provider: str, model: str, api_key: str, diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None) -> dict:
@@ -138,14 +145,20 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     results: dict[str, dict] = {}
     failures: list[dict] = []
     try:
+        max_bytes = settings.max_repository_size_mb * 1024 * 1024
+        github_size_bytes = github_repository_size_bytes(repo_url)
+        if github_size_bytes is not None:
+            diagnostics.run_event("repository_size_checked_before_clone", repository_size_bytes=github_size_bytes)
+            if github_size_bytes > max_bytes:
+                raise _repository_size_limit_error()
+
         with tempfile.TemporaryDirectory(prefix="reverse-engineer-") as tmp:
             workspace = Path(tmp)
             diagnostics.run_event("workspace_created", workspace=str(workspace))
             repository = clone_repository(repo_url, workspace)
             size_bytes = repository_size_bytes(repository)
-            max_bytes = settings.max_repository_size_mb * 1024 * 1024
             if size_bytes > max_bytes:
-                raise ValueError(f"This app does not support repositories larger than {settings.max_repository_size_mb} MB. We hope to enhance support for larger repositories later.")
+                raise _repository_size_limit_error()
             diagnostics.run_event("repository_cloned", repository=str(repository), repository_size_bytes=size_bytes)
             intelligence: RepositoryIntelligence = collect_repository_intelligence(repository)
             diagnostics.run_event("repository_intelligence_collected", files_considered=intelligence.file_count)
