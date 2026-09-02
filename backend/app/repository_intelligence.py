@@ -1,162 +1,199 @@
-"""Deterministic repository pre-analysis for reverse-engineering phases.
-
-This module performs common discovery work once per cloned repository.  The
-result is compact, structured evidence that can be supplied to every selected
-phase before the LLM decides whether additional investigation is necessary.
-"""
-
+"""Deterministic repository intelligence extraction."""
 from __future__ import annotations
 
 import json
 import re
-from collections import Counter, defaultdict
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Iterable
 
-TEXT_SUFFIXES = {
-    ".java", ".kt", ".kts", ".py", ".js", ".jsx", ".ts", ".tsx",
-    ".json", ".yml", ".yaml", ".xml", ".properties", ".gradle", ".md",
-    ".txt", ".html", ".css", ".scss", ".sql", ".sh", ".toml", ".conf",
-}
-SKIP_DIRS = {".git", "node_modules", "target", "build", "dist", ".next", "coverage", "vendor", ".venv", "__pycache__"}
-IMPORTANT_NAMES = {
-    "README.md", "README", "package.json", "pom.xml", "build.gradle",
-    "build.gradle.kts", "settings.gradle", "settings.gradle.kts", "Dockerfile",
-    "docker-compose.yml", "docker-compose.yaml", "Makefile", ".env.example",
-}
+TEXT_EXTENSIONS = {".py", ".js", ".jsx", ".ts", ".tsx", ".json", ".md", ".mdx", ".yaml", ".yml", ".toml", ".ini", ".cfg", ".css", ".scss", ".mjs", ".cjs", ".html", ".sql", ".graphql", ".gql", ".env", ".txt", ".xml", ".properties"}
+IGNORED_DIRS = {".git", "node_modules", ".venv", "venv", "__pycache__", ".next", "dist", "build"}
+MAX_FILES = 3000
+MAX_TEXT_BYTES_PER_FILE = 500_000
 
 
-def _is_text_file(path: Path) -> bool:
-    return path.suffix.lower() in TEXT_SUFFIXES or path.name in IMPORTANT_NAMES
+def _iter_files(root: Path) -> Iterable[Path]:
+    count = 0
+    for path in root.rglob("*"):
+        if any(part in IGNORED_DIRS for part in path.parts) or not path.is_file():
+            continue
+        yield path
+        count += 1
+        if count >= MAX_FILES:
+            return
 
 
-def _safe_read(path: Path, max_chars: int = 20000) -> str:
+def _read_text(path: Path) -> str:
     try:
-        return path.read_text(encoding="utf-8", errors="replace")[:max_chars]
+        if path.stat().st_size > MAX_TEXT_BYTES_PER_FILE:
+            return ""
+        return path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         return ""
-
-
-def _relative(root: Path, path: Path) -> str:
+    
+def _relative(path: Path, root: Path) -> str:
     return path.relative_to(root).as_posix()
 
-
-def _detect_technologies(root: Path, files: list[Path]) -> list[str]:
-    names = {path.name for path in files}
-    technologies: list[str] = []
-    package = _safe_read(root / "package.json") if "package.json" in names else ""
-    pom = _safe_read(root / "pom.xml") if "pom.xml" in names else ""
-    gradle = "\n".join(_safe_read(path) for path in files if path.name in {"build.gradle", "build.gradle.kts"})
-    all_paths = "\n".join(_relative(root, path) for path in files)
-
-    if "next.config.js" in names or "next.config.ts" in names or "\"next\"" in package:
-        technologies.append("Next.js")
-    if "\"react\"" in package or any(path.suffix.lower() in {".jsx", ".tsx"} for path in files):
-        technologies.append("React")
-    if "spring-boot" in pom.lower() or "spring-boot" in gradle.lower() or "@springbootapplication" in all_paths.lower():
-        technologies.append("Spring Boot")
-    if "spring" in pom.lower() and "Spring Boot" not in technologies:
-        technologies.append("Spring")
-    if "quarkus" in pom.lower() or "quarkus" in gradle.lower():
-        technologies.append("Quarkus")
-    if "django" in package.lower() or any("django" in _safe_read(path, 5000).lower() for path in files if path.name == "requirements.txt"):
-        technologies.append("Django")
-    if "fastapi" in "\n".join(_safe_read(path, 5000) for path in files if path.name in {"requirements.txt", "pyproject.toml"}).lower():
-        technologies.append("FastAPI")
-    if "dockerfile" in {name.lower() for name in names}:
-        technologies.append("Docker")
-    if ".github/workflows/" in all_paths:
-        technologies.append("GitHub Actions")
-    return technologies
+def _unique(values: Iterable[str]) -> list[str]:
+    seen: set[str] = set()
+    result: list[str] = []
+    for value in values:
+        if value and value not in seen:
+            seen.add(value)
+            result.append(value)
+    return result
 
 
-def _classify_paths(root: Path, files: list[Path]) -> dict[str, list[str]]:
-    groups: dict[str, list[str]] = defaultdict(list)
-    for path in files:
-        rel = _relative(root, path)
-        lower = rel.lower()
-        if path.name in IMPORTANT_NAMES:
-            groups["metadata_and_build"].append(rel)
-        if "test" in lower or "spec" in lower:
-            groups["tests"].append(rel)
-        if ".github/workflows/" in lower or "gitlab-ci" in lower or "jenkins" in lower:
-            groups["ci_cd"].append(rel)
-        if any(token in lower for token in ("docker", "kubernetes", "k8s", "helm", "terraform", "ansible")):
-            groups["deployment_and_infrastructure"].append(rel)
-        if any(token in lower for token in ("config", "application.yml", "application.yaml", "application.properties", ".env")):
-            groups["configuration"].append(rel)
-        if any(token in lower for token in ("controller", "route", "/api/", "api/", "router")):
-            groups["api_and_routes"].append(rel)
-        if any(token in lower for token in ("service", "usecase", "use-case")):
-            groups["services"].append(rel)
-        if any(token in lower for token in ("repository", "dao", "entity", "model", "domain")):
-            groups["domain_and_data"].append(rel)
-        if any(token in lower for token in ("component", "components/", "page", "view", "layout", "template")):
-            groups["presentation"].append(rel)
-    return {key: values[:200] for key, values in sorted(groups.items())}
+def _imports(text: str) -> list[str]:
+    patterns = [r"(?:from|import)\s+['\"]([^'\"]+)['\"]", r"from\s+['\"]([^'\"]+)['\"]", r"require\(\s*['\"]([^'\"]+)['\"]\s*\)"]
+    out: list[str] = []
+    for pattern in patterns:
+        out.extend(re.findall(pattern, text))
+    return _unique(out)[:100]
 
 
-def _extract_route_candidates(root: Path, files: list[Path]) -> list[dict[str, str]]:
-    routes: list[dict[str, str]] = []
-    for path in files:
-        rel = _relative(root, path)
-        lower = rel.lower()
-        if lower.endswith(("route.ts", "route.js", "route.py")) or "/api/" in lower or "controller" in lower:
-            routes.append({"file": rel, "reason": "route/API naming convention"})
-    return routes[:100]
+def _exports(text: str) -> list[str]:
+    out = re.findall(r"export\s+(?:async\s+)?(?:function|class|const|let|var|type|interface)\s+([A-Za-z_$][\w$]*)", text)
+    return _unique(out)[:100]
 
 
-def _extract_external_integration_candidates(root: Path, files: list[Path]) -> list[dict[str, str]]:
-    patterns = re.compile(r"\b(shopify|stripe|aws|azure|gcp|google|github|kafka|rabbitmq|redis|postgres|mysql|mongodb|elasticsearch)\b", re.I)
-    found: list[dict[str, str]] = []
-    for path in files:
-        if not _is_text_file(path):
-            continue
-        text = _safe_read(path, 12000)
-        matches = sorted(set(match.group(1).lower() for match in patterns.finditer(text)))
-        if matches:
-            found.append({"file": _relative(root, path), "matches": ", ".join(matches)})
-    return found[:100]
-
-
-def build_repository_intelligence(repository: Path, repo_url: str) -> dict[str, Any]:
-    """Perform deterministic common discovery once and return JSON-safe evidence."""
-    root = repository.resolve()
-    files: list[Path] = []
-    for path in root.rglob("*"):
-        if any(part in SKIP_DIRS for part in path.parts):
-            continue
-        if path.is_file():
-            files.append(path)
-    files.sort(key=lambda path: _relative(root, path))
-
-    suffix_counts = Counter(path.suffix.lower() or "[no extension]" for path in files)
-    important = [path for path in files if path.name in IMPORTANT_NAMES]
-    top_level = sorted({path.relative_to(root).parts[0] for path in files if path.relative_to(root).parts})
-
+def _symbols(text: str) -> dict[str, list[str]]:
     return {
-        "repository_url": repo_url,
-        "repository_root": str(root),
-        "summary": {
-            "file_count": len(files),
-            "top_level_entries": top_level[:100],
-            "file_types": suffix_counts.most_common(30),
-            "technologies_detected": _detect_technologies(root, files),
-        },
-        "important_files": [
-            {"path": _relative(root, path), "content": _safe_read(path, 12000)}
-            for path in important[:30]
-        ],
-        "file_tree": [_relative(root, path) for path in files[:1000]],
-        "semantic_groups": _classify_paths(root, files),
-        "route_candidates": _extract_route_candidates(root, files),
-        "integration_candidates": _extract_external_integration_candidates(root, files),
+        "functions": _unique(re.findall(r"\b(?:async\s+)?function\s+([A-Za-z_$][\w$]*)", text))[:100],
+        "classes": _unique(re.findall(r"\bclass\s+([A-Za-z_$][\w$]*)", text))[:100],
+        "interfaces": _unique(re.findall(r"\binterface\s+([A-Za-z_$][\w$]*)", text))[:100],
+        "types": _unique(re.findall(r"\btype\s+([A-Za-z_$][\w$]*)\s*=", text))[:100],
     }
 
 
-def intelligence_for_prompt(intelligence: dict[str, Any], max_chars: int = 45000) -> str:
-    """Serialize pre-analysis with an explicit boundary for the LLM."""
-    text = json.dumps(intelligence, ensure_ascii=False, indent=2)
-    if len(text) > max_chars:
-        text = text[:max_chars] + "\n[TRUNCATED: use repository evidence tools for details not included above]"
-    return "DETERMINISTIC REPOSITORY INTELLIGENCE (evidence collected before this phase):\n" + text
+@dataclass
+class FileIntelligence:
+    path: str
+    extension: str
+    size: int
+    line_count: int
+    imports: list[str] = field(default_factory=list)
+    exports: list[str] = field(default_factory=list)
+    symbols: dict[str, list[str]] = field(default_factory=dict)
+    markers: list[str] = field(default_factory=list)
+
+
+@dataclass
+class RepositoryIntelligence:
+    root: str
+    file_count: int
+    files: list[str]
+    directories: list[str]
+    technologies: list[str]
+    package_scripts: dict[str, str]
+    dependencies: dict[str, str]
+    dev_dependencies: dict[str, str]
+    env_variables: list[str]
+    routes: list[str]
+    page_files: list[str]
+    api_routes: list[str]
+    test_files: list[str]
+    config_files: list[str]
+    ci_files: list[str]
+    documentation_files: list[str]
+    integration_files: list[str]
+    source_files: list[FileIntelligence]
+
+    def to_dict(self) -> dict:
+        return asdict(self)
+
+    def to_json(self) -> str:
+        return json.dumps(self.to_dict(), indent=2, ensure_ascii=False)
+
+
+def _package(root: Path) -> dict:
+    path = root / "package.json"
+    if not path.is_file():
+        return {}
+    try:
+        return json.loads(_read_text(path))
+    except (TypeError, json.JSONDecodeError):
+        return {}
+
+
+def _detect_technologies(root: Path, package: dict, files: list[str]) -> list[str]:
+    deps = {**package.get("dependencies", {}), **package.get("devDependencies", {})}
+    lower = "\n".join(files).lower()
+    mapping = {
+        "next": "Next.js", "react": "React", "typescript": "TypeScript", "tailwindcss": "Tailwind CSS",
+        "fastapi": "FastAPI", "pydantic": "Pydantic", "django": "Django", "flask": "Flask",
+        "pytest": "Pytest", "playwright": "Playwright", "cypress": "Cypress", "jest": "Jest",
+        "vitest": "Vitest", "graphql": "GraphQL", "openai": "OpenAI", "docker": "Docker",
+    }
+    result = [label for key, label in mapping.items() if key in deps or key in lower]
+    if (root / "requirements.txt").is_file() or (root / "pyproject.toml").is_file():
+        result.append("Python")
+    if (root / "package.json").is_file():
+        result.append("Node.js")
+    return _unique(result)
+
+
+def collect_repository_intelligence(repository: Path) -> RepositoryIntelligence:
+    root = repository.resolve()
+    if not root.is_dir():
+        raise ValueError(f"Repository path does not exist: {repository}")
+    paths = list(_iter_files(root))
+    files = [_relative(path, root) for path in paths]
+    package = _package(root)
+    dirs = _unique(parent.as_posix() for path in paths for parent in path.relative_to(root).parents if parent.as_posix() != ".")
+    source: list[FileIntelligence] = []
+    routes: list[str] = []
+    page_files: list[str] = []
+    api_routes: list[str] = []
+    test_files: list[str] = []
+    config_files: list[str] = []
+    ci_files: list[str] = []
+    docs: list[str] = []
+    integration_files: list[str] = []
+    env_vars: list[str] = []
+
+    config_names = {"package.json", "requirements.txt", "pyproject.toml", "tsconfig.json", "next.config.ts", "next.config.js", "next.config.mjs", "vite.config.ts", "postcss.config.mjs", "tailwind.config.js", "tailwind.config.ts", "dockerfile", "docker-compose.yml"}
+    integration_tokens = ("shopify", "stripe", "postgres", "mysql", "redis", "kafka", "aws", "gcp", "azure", "openai", "graphql")
+    for path in paths:
+        rel = _relative(path, root)
+        lower = rel.lower()
+        ext = path.suffix.lower()
+        name = path.name.lower()
+        if name in config_names:
+            config_files.append(rel)
+        if lower.startswith(".github/"):
+            ci_files.append(rel)
+        if ext in {".md", ".mdx"} or name.startswith("readme"):
+            docs.append(rel)
+        if re.search(r"(^|/)(tests?|spec|__tests__)(/|$)|\.(test|spec)\.[^.]+$", lower):
+            test_files.append(rel)
+        if re.search(r"(^|/)(route|api)(/|$)|route\.[jt]sx?$", lower):
+            routes.append(rel)
+        if lower.endswith(("/route.ts", "/route.js", "/route.py")) or "/api/" in lower:
+            api_routes.append(rel)
+        if re.search(r"(^|/)(page|pages)(/|$)|/page\.[jt]sx?$", lower):
+            page_files.append(rel)
+        text = _read_text(path) if ext in TEXT_EXTENSIONS or name in {"dockerfile", "makefile"} else ""
+        if not text:
+            continue
+        if name.startswith(".env"):
+            env_vars.extend(m.group(1) for m in (re.match(r"\s*([A-Z][A-Z0-9_]+)\s*=", line) for line in text.splitlines()) if m)
+        imports = _imports(text)
+        exports = _exports(text)
+        symbols = _symbols(text)
+        markers = _unique(re.findall(r"\b(?:TODO|FIXME|HACK|XXX|DEPRECATED)\b", text, flags=re.I))
+        source.append(FileIntelligence(rel, ext, path.stat().st_size, text.count("\n") + 1, imports, exports, symbols, markers))
+        if any(token in lower for token in integration_tokens):
+            integration_files.append(rel)
+
+    return RepositoryIntelligence(
+        root=str(root), file_count=len(files), files=files, directories=dirs,
+        technologies=_detect_technologies(root, package, files),
+        package_scripts={str(k): str(v) for k, v in package.get("scripts", {}).items()},
+        dependencies={str(k): str(v) for k, v in package.get("dependencies", {}).items()},
+        dev_dependencies={str(k): str(v) for k, v in package.get("devDependencies", {}).items()},
+        env_variables=_unique(env_vars), routes=_unique(routes), page_files=_unique(page_files),
+        api_routes=_unique(api_routes), test_files=_unique(test_files), config_files=_unique(config_files),
+        ci_files=_unique(ci_files), documentation_files=_unique(docs), integration_files=_unique(integration_files), source_files=source,
+    )
