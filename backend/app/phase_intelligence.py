@@ -1,119 +1,115 @@
-"""Phase-specific projections of deterministic repository intelligence."""
+"""Phase-specific deterministic evidence packages.
+
+Collectors aggregate programmatically obtainable repository facts. They deliberately expose
+candidates and relationships rather than making architectural or design conclusions.
+"""
 from __future__ import annotations
 
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from .repository_intelligence import RepositoryIntelligence, collect_repository_intelligence
 
-PHASE_FILE_TOKENS: dict[str, tuple[str, ...]] = {
-    "business-purpose": ("README", "LICENSE", "docs", "app/", "src/"),
-    "features": ("app/", "components/", "pages/", "src/", "README", "routes"),
-    "business-requirements": ("app/", "components/", "pages/", "src/", "README", "api/"),
-    "software-requirements": ("app/", "components/", "lib/", "src/", "api/", "queries/", "mutations/"),
-    "technology-architecture": ("next.config", "package.json", "tsconfig", "app/", "components/", "lib/", "services/", "api/", "Docker", "docker"),
-    "design-pattern": ("components/", "lib/", "services/", "domain/", "app/", "actions", "context", "provider", "adapter", "factory", "repository"),
-    "high-level-design": ("app/", "components/", "lib/", "services/", "api/", "routes/", "domain/", "repositories/", "package.json"),
-    "low-level-design": ("app/", "components/", "lib/", "services/", "domain/", "types", "queries/", "mutations/", "actions"),
-    "implementation-detail": ("app/", "components/", "lib/", "services/", "domain/", "queries/", "mutations/", "actions", "config"),
-    "testing-harness": ("test", "tests", "spec", "__tests__", ".github/", "package.json", "vitest", "jest", "playwright", "cypress", "pytest"),
-    "future-directions": ("README", ".github/", "package.json", "requirements", "TODO", "FIXME", "DEPRECATED", "next.config", "tsconfig"),
-}
+
+def _by_path(intelligence: RepositoryIntelligence):
+    return {item.path: item for item in intelligence.source_files}
 
 
-def _relevant_files(intelligence: RepositoryIntelligence, phase: str, limit: int = 180) -> list[str]:
-    tokens = PHASE_FILE_TOKENS.get(phase, ())
-    if not tokens:
-        return intelligence.files[:limit]
-    selected = [
-        path for path in intelligence.files
-        if any(token.lower() in path.lower() for token in tokens)
-    ]
+def _topology(intelligence: RepositoryIntelligence, limit: int = 40) -> list[str]:
+    counts = Counter(path.split("/", 1)[0] for path in intelligence.files)
+    return [f"- {name}/: {count} tracked files" for name, count in counts.most_common(limit)]
+
+
+def _dependency_edges(intelligence: RepositoryIntelligence, limit: int = 120) -> list[str]:
+    edges = []
+    for item in intelligence.source_files:
+        for imported in item.imports[:100]:
+            if imported.startswith("."):
+                edges.append(f"- {item.path} -> {imported}")
+    return edges[:limit]
+
+
+def _signal_files(intelligence: RepositoryIntelligence, signals: set[str], limit: int = 80) -> list[str]:
+    # Signals are inferred from source structures below without asserting a pattern.
+    patterns = {
+        "context": ("context", "provider"),
+        "adapter": ("adapter",),
+        "repository": ("repository",),
+        "factory": ("factory",),
+        "observer": ("subscribe", "listener", "event", "observer"),
+        "state": ("store", "context", "provider", "redux", "zustand"),
+        "cache": ("cache", "revalidate"),
+        "integration": ("client", "sdk", "api", "graphql", "stripe", "shopify", "supabase", "firebase"),
+    }
+    selected = []
+    for item in intelligence.source_files:
+        haystack = (item.path + " " + " ".join(item.imports) + " " + " ".join(item.exports)).lower()
+        if any(any(token in haystack for token in patterns[name]) for name in signals if name in patterns):
+            selected.append(item.path)
     return selected[:limit]
 
 
-def _file_rows(intelligence: RepositoryIntelligence, files: list[str], limit: int = 120) -> list[str]:
-    by_path = {item.path: item for item in intelligence.source_files}
-    rows: list[str] = []
-    for path in files[:limit]:
-        item = by_path.get(path)
-        if not item:
-            rows.append(f"- {path}")
-            continue
-        symbols = "; ".join(
-            f"{kind}: {', '.join(values[:30])}" for kind, values in item.symbols.items() if values
-        )
-        rows.append(f"- {path} | lines={item.line_count} | imports={', '.join(item.imports[:25])} | exports={', '.join(item.exports[:25])} | {symbols}")
-    return rows
+def _architecture_evidence(intelligence: RepositoryIntelligence) -> list[str]:
+    lines = ["ARCHITECTURE EVIDENCE COLLECTED PROGRAMMATICALLY", "", "Runtime and framework evidence:"]
+    lines.extend(f"- {technology}" for technology in intelligence.technologies) or lines.append("- none detected")
+    lines.extend(["", "Application topology:", *_topology(intelligence)])
+    lines.extend(["", "Configuration and deployment evidence:"])
+    lines.extend(f"- {path}" for path in (intelligence.config_files + intelligence.ci_files)[:80]) or lines.append("- none detected")
+    lines.extend(["", "Routes and entry points:"])
+    lines.extend(f"- {path}" for path in (intelligence.api_routes + intelligence.page_files)[:120]) or lines.append("- none detected")
+    lines.extend(["", "External integration candidates:"])
+    lines.extend(f"- {path}" for path in _signal_files(intelligence, {"integration"}))
+    lines.extend(f"- {path}" for path in intelligence.integration_files if path not in _signal_files(intelligence, {"integration"}))
+    if lines[-1] == "External integration candidates:": lines.append("- none detected")
+    lines.extend(["", "State-management candidates:"])
+    state = _signal_files(intelligence, {"state"})
+    lines.extend(f"- {path}" for path in state) or lines.append("- none detected")
+    lines.extend(["", "Caching and revalidation candidates:"])
+    cache = _signal_files(intelligence, {"cache"})
+    lines.extend(f"- {path}" for path in cache) or lines.append("- none detected")
+    lines.extend(["", "Environment-variable evidence:"])
+    lines.extend(f"- {name}" for name in intelligence.env_variables[:100]) or lines.append("- none detected")
+    lines.extend(["", "Module dependency evidence:", *_dependency_edges(intelligence)])
+    return lines
+
+
+def _pattern_evidence(intelligence: RepositoryIntelligence) -> list[str]:
+    groups = {"Provider/Context candidates": {"context"}, "Adapter candidates": {"adapter", "integration"}, "Repository candidates": {"repository"}, "Factory candidates": {"factory"}, "Observer/subscription candidates": {"observer"}}
+    lines = ["PATTERN EVIDENCE COLLECTED PROGRAMMATICALLY"]
+    for title, signals in groups.items():
+        matches = _signal_files(intelligence, signals)
+        lines.extend(["", title + ":"])
+        lines.extend(f"- {path}" for path in matches) if matches else lines.append("- no conventional candidate detected")
+    return lines
+
+
+def _baseline(intelligence: RepositoryIntelligence) -> list[str]:
+    return ["REPOSITORY BASELINE", f"Repository files considered: {intelligence.file_count}", f"Technologies: {', '.join(intelligence.technologies) or 'not detected'}", f"Environment variables: {', '.join(intelligence.env_variables) or 'none detected'}", f"Package scripts: {intelligence.package_scripts}"]
+
+
+def _generic_evidence(intelligence: RepositoryIntelligence, phase: str) -> list[str]:
+    by_directory: dict[str, list[str]] = defaultdict(list)
+    for item in intelligence.source_files:
+        by_directory[str(Path(item.path).parent)].append(item.path)
+    lines = [f"PROGRAMMATIC EVIDENCE FOR {phase}", "", "Directory structure:", *_topology(intelligence), "", "Routes:"]
+    lines.extend(f"- {path}" for path in intelligence.routes[:120]) or lines.append("- none detected")
+    lines.extend(["", "Tests:"])
+    lines.extend(f"- {path}" for path in intelligence.test_files[:120]) or lines.append("- none detected")
+    lines.extend(["", "Dependency relationships:", *_dependency_edges(intelligence)])
+    return lines
 
 
 def build_phase_intelligence(intelligence: RepositoryIntelligence, phase: str) -> str:
-    relevant = _relevant_files(intelligence, phase)
-    rows = _file_rows(intelligence, relevant)
-    lines = [
-        f"PHASE-SPECIFIC DETERMINISTIC INTELLIGENCE: {phase}",
-        "This package is generated locally before the LLM starts. Treat it as the primary evidence index. Use repository tools only to resolve a specific ambiguity or inspect a source passage needed for precision.",
-        "",
-        "REPOSITORY BASELINE",
-        f"Repository files: {intelligence.file_count}",
-        f"Technologies: {', '.join(intelligence.technologies) or 'not detected'}",
-        f"Environment variables: {', '.join(intelligence.env_variables) or 'none detected'}",
-        f"Routes: {', '.join(intelligence.routes[:120]) or 'none detected'}",
-        f"API routes: {', '.join(intelligence.api_routes[:120]) or 'none detected'}",
-        f"Pages: {', '.join(intelligence.page_files[:120]) or 'none detected'}",
-        f"Tests: {', '.join(intelligence.test_files[:120]) or 'none detected'}",
-        f"CI: {', '.join(intelligence.ci_files[:80]) or 'none detected'}",
-        f"Config: {', '.join(intelligence.config_files[:80]) or 'none detected'}",
-        f"Integrations: {', '.join(intelligence.integration_files[:120]) or 'none detected'}",
-        f"Package scripts: {intelligence.package_scripts}",
-        "",
-        "PHASE-RELEVANT SOURCE INDEX",
-        *rows,
-    ]
-
-    if phase == "technology-architecture":
-        lines.extend([
-            "",
-            "ARCHITECTURE FOCUS",
-            "Identify runtime/platform, application layers, module boundaries, external systems, data flow, state flow, communication mechanisms, caching/revalidation, deployment configuration, and key dependency relationships.",
-        ])
-    elif phase == "design-pattern":
-        lines.extend([
-            "",
-            "PATTERN FOCUS",
-            "Look for concrete recurring structures: context/provider, server/client separation, server actions, adapters, repositories, factories, strategies, observers, composition, dependency inversion, and framework-specific patterns. Name a pattern only when implementation evidence supports it.",
-        ])
-    elif phase == "high-level-design":
-        lines.extend([
-            "",
-            "HLD FOCUS",
-            "Group source files into coarse-grained components and explain responsibilities and interactions. Prefer component boundaries over individual functions.",
-        ])
-    elif phase == "low-level-design":
-        lines.extend([
-            "",
-            "LLD FOCUS",
-            "Use the indexed functions, classes, interfaces, types, imports, exports, queries, mutations, and actions to explain detailed structure and call/data relationships.",
-        ])
-    elif phase == "testing-harness":
-        lines.extend([
-            "",
-            "TESTING FOCUS",
-            "Determine actual test frameworks, test files, scripts, CI workflows, testable seams, mocks/fixtures, and gaps. Explicitly distinguish formatting/linting checks from real executable tests.",
-        ])
-    elif phase == "future-directions":
-        markers = []
-        for item in intelligence.source_files:
-            if item.markers:
-                markers.append(f"{item.path}: {', '.join(item.markers)}")
-        lines.extend([
-            "",
-            "FUTURE-DIRECTIONS FOCUS",
-            "Use explicit repository intent first. Where explicit future intent is absent, derive conservative opportunities from architecture, dependency/configuration state, test maturity, extension points, and evidence of technical debt. Do not manufacture a roadmap.",
-            "Markers: " + (" | ".join(markers[:80]) or "none detected"),
-        ])
+    lines = [f"PHASE-SPECIFIC DETERMINISTIC INTELLIGENCE: {phase}", "The following evidence was collected programmatically before the LLM started. Interpret and validate it; do not repeat repository-wide discovery merely to rediscover these facts.", "", *_baseline(intelligence), ""]
+    if phase == "technology-architecture": lines.extend(_architecture_evidence(intelligence))
+    elif phase == "design-pattern": lines.extend(_pattern_evidence(intelligence))
+    else: lines.extend(_generic_evidence(intelligence, phase))
+    if phase == "future-directions":
+        markers = [f"- {item.path}: {', '.join(item.markers)}" for item in intelligence.source_files if item.markers]
+        lines.extend(["", "Explicit maintenance and technical-debt markers:", *(markers[:100] or ["- none detected"])])
     return "\n".join(lines)
 
 
-def collect_phase_intelligence(repository: Path, phase: str) -> tuple[RepositoryIntelligence, str]:
-    intelligence = collect_repository_intelligence(repository)
+def collect_phase_intelligence(repository: Path, phase: str, intelligence: RepositoryIntelligence | None = None) -> tuple[RepositoryIntelligence, str]:
+    intelligence = intelligence or collect_repository_intelligence(repository)
     return intelligence, build_phase_intelligence(intelligence, phase)
