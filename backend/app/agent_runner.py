@@ -14,7 +14,7 @@ from agents import Agent, Runner, RunHooks, function_tool
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
 
-from .repository_intelligence import build_repository_intelligence, intelligence_for_prompt
+from .phase_intelligence import collect_phase_intelligence
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +24,146 @@ OPENCODE_SKILLS_SOURCE = PROJECT_ROOT / ".opencode" / "skills"
 
 class AgentRunnerError(RuntimeError):
     """Raised when a repository-analysis phase cannot be completed."""
+
+
+def _parse_structured_phase_output(raw_output: str, expected_phase: str) -> str:
+    """Extract validated documentation from structured phase output."""
+
+    def validate(payload: Any) -> str:
+        if not isinstance(payload, dict):
+            raise AgentRunnerError(
+                "Phase output must be a JSON object containing "
+                "'phase' and 'documentation'."
+            )
+
+        phase = payload.get("phase")
+        documentation = payload.get("documentation")
+
+        if not isinstance(phase, str) or not phase.strip():
+            raise AgentRunnerError("Phase output is missing a valid 'phase'.")
+
+        if phase != expected_phase:
+            raise AgentRunnerError(
+                f"Phase output was for '{phase}', expected '{expected_phase}'."
+            )
+
+        if not isinstance(documentation, str) or not documentation.strip():
+            raise AgentRunnerError(
+                "Phase output is missing non-empty 'documentation'."
+            )
+
+        return documentation
+
+    def find_payload(value: Any) -> dict | None:
+        if isinstance(value, dict):
+            if "phase" in value and "documentation" in value:
+                return value
+            for child in value.values():
+                found = find_payload(child)
+                if found is not None:
+                    return found
+        elif isinstance(value, list):
+            for child in value:
+                found = find_payload(child)
+                if found is not None:
+                    return found
+        return None
+
+    def extract_text_fragments(value: Any, fragments: list[str]) -> None:
+        if isinstance(value, dict):
+            part = value.get("part")
+            if isinstance(part, dict):
+                text = part.get("text")
+                if isinstance(text, str):
+                    fragments.append(text)
+
+            properties = value.get("properties")
+            if isinstance(properties, dict):
+                properties_part = properties.get("part")
+                if isinstance(properties_part, dict):
+                    text = properties_part.get("text")
+                    if isinstance(text, str):
+                        fragments.append(text)
+
+            for child in value.values():
+                extract_text_fragments(child, fragments)
+        elif isinstance(value, list):
+            for child in value:
+                extract_text_fragments(child, fragments)
+
+    if not isinstance(raw_output, str) or not raw_output.strip():
+        raise AgentRunnerError("Phase output is empty.")
+
+    try:
+        parsed = json.loads(raw_output)
+    except json.JSONDecodeError:
+        parsed = None
+
+    if parsed is not None:
+        if isinstance(parsed, list):
+            raise AgentRunnerError(
+                "Phase output must be a JSON object, not a JSON array."
+            )
+        if not isinstance(parsed, dict):
+            raise AgentRunnerError("Phase output must be a JSON object.")
+
+        if "phase" in parsed or "documentation" in parsed:
+            return validate(parsed)
+
+        payload = find_payload(parsed)
+        if payload is not None:
+            return validate(payload)
+
+        fragments: list[str] = []
+        extract_text_fragments(parsed, fragments)
+        if fragments:
+            for fragment in ("".join(fragments), *fragments):
+                try:
+                    payload = json.loads(fragment)
+                except json.JSONDecodeError:
+                    continue
+                found = find_payload(payload)
+                if found is not None:
+                    return validate(found)
+
+        raise AgentRunnerError(
+            "Could not find structured phase output containing "
+            "'phase' and 'documentation'."
+        )
+
+    fragments: list[str] = []
+    for line in raw_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            event = json.loads(line)
+        except json.JSONDecodeError as exc:
+            raise AgentRunnerError(
+                "Could not parse structured phase output."
+            ) from exc
+        if isinstance(event, dict):
+            payload = find_payload(event)
+            if payload is not None:
+                return validate(payload)
+            extract_text_fragments(event, fragments)
+
+    if fragments:
+        combined = "".join(fragments)
+        try:
+            payload = json.loads(combined)
+        except json.JSONDecodeError as exc:
+            raise AgentRunnerError(
+                "Could not parse reassembled structured phase output."
+            ) from exc
+        found = find_payload(payload)
+        if found is not None:
+            return validate(found)
+
+    raise AgentRunnerError(
+        "Could not parse structured phase output containing "
+        "'phase' and 'documentation'."
+    )
 
 
 def _clone_repository(repo_url: str, workspace: Path) -> Path:
@@ -193,7 +333,7 @@ class AgentDiagnosticsHooks(RunHooks):
         logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
-async def _run_agent(*, phase: str, phase_name: str, repository: Path, repo_url: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
+async def _run_agent(*, phase: str, phase_name: str, repository: Path, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
         base_url = "https://openrouter.ai/api/v1"
@@ -203,29 +343,34 @@ async def _run_agent(*, phase: str, phase_name: str, repository: Path, repo_url:
         raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
 
     skill = _read_skill(phase)
-    intelligence = build_repository_intelligence(repository, repo_url)
-    intelligence_context = intelligence_for_prompt(intelligence)
+    try:
+        _, phase_intelligence = collect_phase_intelligence(repository, phase)
+    except Exception as exc:
+        logger.exception("Deterministic intelligence collection failed for phase %s", phase)
+        raise AgentRunnerError(
+            f"Repository intelligence collection failed before phase '{phase}': {exc}"
+        ) from exc
+
     handoff = ""
     if previous_output:
         handoff = "\n\nPrevious phase output is supporting context only. Verify important claims against repository evidence.\n\n" + previous_output[:20000]
 
     instructions = f"""You are performing the {phase_name} phase of an evidence-driven SDLC reverse-engineering workflow.
-The repository has already undergone deterministic common discovery. The repository intelligence below is evidence collected before your analysis. Use it as your starting context and do not repeat routine discovery such as listing the entire repository or reading metadata already supplied.
-
-{intelligence_context}
+The tools provide read-only access to the cloned repository. A deterministic repository intelligence package has already been generated below before your first turn. Use it as your primary evidence index. Do not repeat repository-wide discovery or reread files merely to reconstruct information already present in the intelligence package. Use tools only for a specific ambiguity, missing source passage, or precision check.
+Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
 
 Follow this phase methodology:\n{skill or 'Inspect the repository and produce rigorous documentation for the requested phase.'}
 
-Use repository tools only for conditional follow-up investigation needed to resolve evidence gaps or inspect implementation details relevant to this phase. Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
+{phase_intelligence}
 
-Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, deterministic pre-analysis, or execution process.""" + handoff
+Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process.""" + handoff
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
     agent = Agent(name=f"SDLC {phase_name}", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_tools(repository))
 
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
-    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d", trace_id, phase, model, provider_name, repository, len(intelligence_context))
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence))
     try:
         result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks)
     except Exception as exc:
@@ -244,7 +389,7 @@ def run_phase_agent(phase: str, phase_name: str, workspace: Path, repo_url: str,
     workspace.mkdir(parents=True, exist_ok=True)
     repository = _clone_repository(repo_url, workspace)
     try:
-        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, repo_url=repo_url, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
+        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
     except AgentRunnerError:
         raise
     except Exception as exc:
