@@ -196,10 +196,6 @@ def analyze_repository(
         output_root = Path(__file__).resolve().parents[1] / output_root
     output_run_dir = output_root / run_id
     output_run_dir.mkdir(parents=True, exist_ok=True)
-    completed = {p.name for p in output_run_dir.iterdir() if p.is_dir() and (p / "raw.md").is_file()}
-    duplicate = completed.intersection(selected_ids)
-    if duplicate:
-        raise ValueError("selected_phases already completed: " + ", ".join(sorted(duplicate)))
 
     diagnostics_dir = Path(settings.resource_diagnostics_dir)
     if not diagnostics_dir.is_absolute():
