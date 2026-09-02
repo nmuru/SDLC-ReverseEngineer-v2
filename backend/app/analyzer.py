@@ -104,11 +104,11 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
         output_root = Path(__file__).resolve().parents[1] / output_root
     output_run_dir = output_root / run_id
     output_run_dir.mkdir(parents=True, exist_ok=True)
-    completed = {p.name for p in output_run_dir.iterdir() if p.is_dir() and (p / "raw.md").is_file()}
-    duplicate = completed.intersection(selected_ids)
-    if duplicate:
-        raise ValueError("selected_phases already completed: " + ", ".join(sorted(duplicate)))
 
+    # A work_id identifies an analysis workspace, not an immutable phase result.
+    # Explicitly selected phases may be rerun and their prior phase artifacts are
+    # replaced. This supports diagnostics and iterative analysis without forcing a
+    # new work_id for every retry.
     results = {}
     with tempfile.TemporaryDirectory(prefix="reverse-engineer-") as tmp:
         workspace = Path(tmp)
