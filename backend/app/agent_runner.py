@@ -97,7 +97,7 @@ def _read_skill(phase: str) -> str:
     """Load the complete phase skill eagerly, as in the current implementation."""
     if not SKILLS_SOURCE.exists():
         return ""
-    candidates = [SKILLS_SOURCE / phase / "SKILL.md", SKILLS_SOURCE / f"{phase}.md"]
+    candidates = [SKILLS_SOURCE / phase / "SKILL.md", SKILLS_SOURCE / phase / "SKILL.md"]
     for candidate in candidates:
         if candidate.is_file():
             return candidate.read_text(encoding="utf-8", errors="replace")

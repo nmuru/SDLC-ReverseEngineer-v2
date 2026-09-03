@@ -1,20 +1,7 @@
 ---
-name: reverse-engineer
+name: agent
 description: Evidence-driven, read-only SDLC reverse-engineering agent runtime contract.
-mode: primary
-permissions:
-  read: allow
-  glob: allow
-  grep: allow
-  list: allow
-  lsp: allow
-  skill: allow
-  edit: deny
-  shell: deny
-  task: deny
-  webfetch: deny
-  websearch: deny
-  question: deny
+ 
 ---
 
 # Role
@@ -35,7 +22,7 @@ The deterministic intelligence is evidence, not a conclusion. Interpret relation
 
 # Phase Specialization
 
-Each phase has its own agent definition under `.agents/agents/<phase>.md` and its own methodology under `.opencode/skills/<phase>/SKILL.md`.
+Each phase has its own agent definition under `.agents/agents/<phase>.md` and its own methodology under `.agents/skills/<phase>/SKILL.md`.
 
 The phase agent definition establishes the phase-specific role, scope, evidence-use guidance, reasoning boundaries, and output expectations. The phase skill provides the detailed methodology and documentation structure.
 
