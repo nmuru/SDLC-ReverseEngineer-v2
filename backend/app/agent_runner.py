@@ -19,6 +19,7 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+OPENCODE_AGENTS_SOURCE = PROJECT_ROOT / ".opencode" / "agents"
 OPENCODE_SKILLS_SOURCE = PROJECT_ROOT / ".opencode" / "skills"
 
 
@@ -27,12 +28,7 @@ class AgentRunnerError(RuntimeError):
 
 
 def github_repository_size_bytes(repo_url: str) -> int | None:
-    """Return GitHub's repository-size estimate in bytes for a public GitHub URL.
-
-    GitHub reports repository size in KiB. This is used as an admission check before
-    cloning; it is an estimate and not a substitute for the post-clone disk check.
-    Non-GitHub URLs return None and continue to the clone stage unchanged.
-    """
+    """Return GitHub's repository-size estimate in bytes for a public GitHub URL."""
     parsed = urlparse(repo_url.strip())
     if parsed.scheme not in {"http", "https"} or parsed.hostname not in {"github.com", "www.github.com"}:
         return None
@@ -87,7 +83,22 @@ def repository_size_bytes(repository: Path) -> int:
     return total
 
 
+def _read_agent_definition(phase: str) -> str:
+    """Load the phase-specific agent contract when present."""
+    if not OPENCODE_AGENTS_SOURCE.exists():
+        return ""
+    candidates = [
+        OPENCODE_AGENTS_SOURCE / f"{phase}.agent.md",
+        OPENCODE_AGENTS_SOURCE / f"{phase}.md",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate.read_text(encoding="utf-8", errors="replace")
+    return ""
+
+
 def _read_skill(phase: str) -> str:
+    """Load the complete phase skill eagerly, as in the current implementation."""
     if not OPENCODE_SKILLS_SOURCE.exists():
         return ""
     candidates = [OPENCODE_SKILLS_SOURCE / phase / "SKILL.md", OPENCODE_SKILLS_SOURCE / f"{phase}.md"]
@@ -99,6 +110,7 @@ def _read_skill(phase: str) -> str:
 
 def _build_tools(repository: Path):
     root = repository.resolve()
+
     def safe_path(relative_path: str) -> Path:
         path = (root / relative_path).resolve()
         if path != root and root not in path.parents:
@@ -109,37 +121,47 @@ def _build_tools(repository: Path):
     def list_files(path: str = ".", max_entries: int = 300) -> str:
         """List repository files and directories recursively, without modifying anything."""
         target = safe_path(path)
-        if not target.exists(): return "Path does not exist."
+        if not target.exists():
+            return "Path does not exist."
         entries = []
         for item in target.rglob("*"):
-            if ".git" in item.parts: continue
+            if ".git" in item.parts:
+                continue
             entries.append(str(item.relative_to(root)))
             if len(entries) >= max_entries:
-                entries.append("[truncated]"); break
+                entries.append("[truncated]")
+                break
         return "\n".join(entries)
 
     @function_tool
     def read_file(path: str, max_chars: int = 30000) -> str:
         """Read a UTF-8 text file for conditional follow-up evidence not already present in deterministic intelligence."""
         target = safe_path(path)
-        if not target.is_file(): return "File does not exist or is not a regular file."
-        try: return target.read_text(encoding="utf-8", errors="replace")[:max_chars]
-        except OSError as exc: return f"Could not read file: {exc}"
+        if not target.is_file():
+            return "File does not exist or is not a regular file."
+        try:
+            return target.read_text(encoding="utf-8", errors="replace")[:max_chars]
+        except OSError as exc:
+            return f"Could not read file: {exc}"
 
     @function_tool
     def search_repository(query: str, max_results: int = 100) -> str:
         """Search repository text for conditional follow-up evidence not already present in deterministic intelligence."""
         matches = []
         for item in root.rglob("*"):
-            if ".git" in item.parts or not item.is_file(): continue
+            if ".git" in item.parts or not item.is_file():
+                continue
             try:
                 with item.open("r", encoding="utf-8", errors="replace") as handle:
                     for line_number, line in enumerate(handle, start=1):
                         if query.lower() in line.lower():
                             matches.append(f"{item.relative_to(root)}:{line_number}: {line.rstrip()}")
-                            if len(matches) >= max_results: return "\n".join(matches + ["[truncated]"])
-            except OSError: continue
+                            if len(matches) >= max_results:
+                                return "\n".join(matches + ["[truncated]"])
+            except OSError:
+                continue
         return "\n".join(matches) if matches else "No matches found."
+
     return [list_files, read_file, search_repository]
 
 
@@ -150,61 +172,87 @@ def _preview(value: Any, limit: int = 800) -> str:
 
 class AgentDiagnosticsHooks(RunHooks):
     def __init__(self, trace_id: str, phase: str):
-        self.trace_id = trace_id; self.phase = phase; self.llm_turn = 0; self.tool_calls = 0
+        self.trace_id = trace_id
+        self.phase = phase
+        self.llm_turn = 0
+        self.tool_calls = 0
+
     async def on_llm_start(self, context, agent, system_prompt, input_items) -> None:
         self.llm_turn += 1
         logger.warning("AGENT_DIAG llm_start trace_id=%s phase=%s turn=%d input_items=%d system_prompt_chars=%d", self.trace_id, self.phase, self.llm_turn, len(input_items), len(system_prompt or ""))
+
     async def on_llm_end(self, context, agent, response) -> None:
         output_items = getattr(response, "output", []) or []
         usage = getattr(context, "usage", None)
         logger.warning("AGENT_DIAG llm_end trace_id=%s phase=%s turn=%d output_items=%d usage_requests=%s", self.trace_id, self.phase, self.llm_turn, len(output_items), getattr(usage, "requests", None))
+
     async def on_tool_start(self, context, agent, tool) -> None:
         self.tool_calls += 1
         logger.warning("AGENT_DIAG tool_start trace_id=%s phase=%s turn=%d tool_index=%d tool=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, getattr(tool, "name", type(tool).__name__))
+
     async def on_tool_end(self, context, agent, tool, result) -> None:
         logger.warning("AGENT_DIAG tool_end trace_id=%s phase=%s turn=%d tool_index=%d tool=%s result_chars=%d result_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, getattr(tool, "name", type(tool).__name__), len(str(result)), _preview(result, 1200))
+
     async def on_agent_end(self, context, agent, output) -> None:
         logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
 async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_intelligence: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
     provider_name = provider.strip().lower()
-    if provider_name == "openrouter": base_url = "https://openrouter.ai/api/v1"
-    elif provider_name == "openai": base_url = "https://api.openai.com/v1"
-    else: raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
+    if provider_name == "openrouter":
+        base_url = "https://openrouter.ai/api/v1"
+    elif provider_name == "openai":
+        base_url = "https://api.openai.com/v1"
+    else:
+        raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
+
+    agent_definition = _read_agent_definition(phase)
     skill = _read_skill(phase)
     handoff = ""
     if previous_output:
         handoff = "\n\nPrevious phase output is supporting context only. Verify important claims against repository evidence.\n\n" + previous_output[:20000]
-    instructions = f"""You are performing the {phase_name} phase of an evidence-driven SDLC reverse-engineering workflow.
-The tools provide read-only access to the cloned repository. A deterministic repository intelligence package has already been generated before your first turn. Use it as your primary evidence index. Do not repeat repository-wide discovery or reread files merely to reconstruct information already present in the intelligence package. Use tools only for a specific ambiguity, missing source passage, or precision check.
+
+    common_instructions = """You are performing an evidence-driven SDLC reverse-engineering phase.
+The repository has already been cloned and deterministic repository intelligence has already been collected before your first turn. Treat that intelligence as the primary evidence index.
+Do not repeat repository-wide discovery or reread files merely to reconstruct information already present in the intelligence package. Use repository tools only for a specific ambiguity, missing source passage, or precision check.
 Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
+The repository is read-only. Do not modify it.
+Return only complete professional Markdown documentation for the requested phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process."""
 
-Follow this phase methodology:\n{skill or 'Inspect the repository and produce rigorous documentation for the requested phase.'}
+    instructions = "\n\n".join(part for part in [common_instructions, agent_definition, f"Phase methodology:\n{skill}" if skill else "", phase_intelligence, handoff] if part)
 
-{phase_intelligence}
-
-Return only complete professional Markdown documentation for this phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process.""" + handoff
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
-    agent = Agent(name=f"SDLC {phase_name}", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_tools(repository))
-    trace_id = uuid.uuid4().hex[:12]; hooks = AgentDiagnosticsHooks(trace_id, phase); started = time.perf_counter()
-    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence))
+    agent = Agent(
+        name=f"SDLC {phase_name}",
+        instructions=instructions,
+        model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
+        tools=_build_tools(repository),
+    )
+    trace_id = uuid.uuid4().hex[:12]
+    hooks = AgentDiagnosticsHooks(trace_id, phase)
+    started = time.perf_counter()
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_chars=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), len(skill))
     try:
         result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks)
     except Exception as exc:
-        logger.warning("AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s", trace_id, phase, time.perf_counter()-started, hooks.llm_turn, hooks.tool_calls, type(exc).__name__, str(exc)); raise
+        logger.warning("AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s", trace_id, phase, time.perf_counter() - started, hooks.llm_turn, hooks.tool_calls, type(exc).__name__, str(exc))
+        raise
     output = str(result.final_output or "").strip()
-    if not output: raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
+    if not output:
+        raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
     return output
 
 
 def run_phase_agent(phase: str, phase_name: str, repository: Path, phase_intelligence: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> str:
     """Run one phase against a shared read-only repository workspace."""
-    if not api_key or not api_key.strip(): raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
-    if not repository.is_dir(): raise AgentRunnerError(f"Repository path does not exist: {repository}")
+    if not api_key or not api_key.strip():
+        raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
+    if not repository.is_dir():
+        raise AgentRunnerError(f"Repository path does not exist: {repository}")
     try:
         return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, phase_intelligence=phase_intelligence, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
-    except AgentRunnerError: raise
+    except AgentRunnerError:
+        raise
     except Exception as exc:
         logger.exception("OpenAI Agents SDK failed during phase %s", phase)
         raise AgentRunnerError(f"OpenAI Agents SDK failed during phase '{phase}': {exc}") from exc
