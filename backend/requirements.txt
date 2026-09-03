@@ -5,3 +5,4 @@ httpx
 requests
 openai-agents
 psutil
+tree-sitter-language-pack
