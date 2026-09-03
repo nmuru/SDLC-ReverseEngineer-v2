@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>software-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Requirements Dossier — Next.js Commerce (Shopify Integration)</h1>
+<p><strong>Repository</strong>: https://github.com/vercel/commerce</p>
+<p><strong>Language</strong>: TypeScript, JavaScript, CSS, JSON, Markdown</p>
+<p><strong>Framework</strong>: Next.js 15 (turbopack), React 19</p>
+<p>---</p>
+<h2>1. Functional Requirements</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>F‑1</strong></td><td>The system shall expose a <strong>development server</strong> that can be started with <code>pnpm dev</code> and listen on <code>localhost:3000</code>.</td><td><code>package.json</code> script <code>&quot;dev&quot;: &quot;next dev --turbopack&quot;</code>; README &quot;Your app should now be running on [localhost:3000]&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>F‑2</strong></td><td>The system shall expose a <strong>production build</strong> that can be started with <code>pnpm build</code> followed by <code>pnpm start</code>.</td><td><code>package.json</code> scripts <code>&quot;build&quot;: &quot;next build&quot;</code>, <code>&quot;start&quot;: &quot;next start&quot;</code>; README instructions.</td><td>Verified</td></tr>
+<tr><td><strong>F‑3</strong></td><td>The system shall load <strong>environment variables</strong> from a <code>.env</code> file (or via Vercel Environment Variables) at runtime.</td><td><code>.env.example</code> file listing required variables (<code>COMPANY_NAME</code>, <code>SITE_NAME</code>, <code>SHOPIFY_REVALIDATION_SECRET</code>, <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code>, <code>SHOPIFY_STORE_DOMAIN</code>). README note: &quot;You will need to use the environment variables defined in <code>.env.example</code> to run Next.js Commerce.&quot;</td><td>Verified</td></tr>
+<tr><td><strong>F‑4</strong></td><td>The system shall <strong>validate</strong> that required Shopify environment variables are present before starting the dev server (or at least fail gracefully).</td><td>The presence of <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> and <code>SHOPIFY_STORE_DOMAIN</code> in <code>.env.example</code> implies they are required for Shopify integration; missing values would break the Shopify client.</td><td>Inferred</td></tr>
+<tr><td><strong>F‑5</strong></td><td>The system shall provide <strong>API route</strong> <code>/api/revalidate</code> that can be called by Shopify to re‑validate webhook secrets.</td><td>File <code>app/api/revalidate/route.ts</code>; README &quot;Integration guide&quot; references Shopify webhook verification.</td><td>Verified</td></tr>
+<tr><td><strong>F‑6</strong></td><td>The system shall enable <strong>product browsing</strong> by handle (URL path <code>/product/[handle]/page.tsx</code>).</td><td>File <code>app/product/[handle]/page.tsx</code>; README description of &quot;product pages&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>F‑7</strong></td><td>The system shall enable <strong>category / collection browsing</strong> via <code>/search/[collection]/page.tsx</code>.</td><td>Files <code>app/search/[collection]/page.tsx</code>, <code>app/search/layout.tsx</code>; README &quot;search&quot; section.</td><td>Verified</td></tr>
+<tr><td><strong>F‑8</strong></td><td>The system shall allow <strong>adding items to the cart</strong> via a client‑side action (<code>components/cart/actions.ts</code> + <code>components/cart/add-to-cart.tsx</code>).</td><td>Cart context and add‑to‑cart component exist; README &quot;Running locally&quot; mentions <code>pnpm dev</code>.</td><td>Verified</td></tr>
+<tr><td><strong>F‑9</strong></td><td>The system shall allow <strong>deleting an item</strong> from the cart (<code>components/cart/delete-item-button.tsx</code>).</td><td>File present; implies cart mutation capability.</td><td>Verified</td></tr>
+<tr><td><strong>F‑10</strong></td><td>The system shall allow <strong>updating the quantity</strong> of a cart item (<code>components/cart/edit-item-quantity-button.tsx</code>).</td><td>File present; implies cart mutation capability.</td><td>Verified</td></tr>
+<tr><td><strong>F‑11</strong></td><td>The system shall provide a <strong>cart modal / mini‑cart UI</strong> (<code>components/cart/modal.tsx</code>, <code>components/cart/open-cart.tsx</code>).</td><td>UI components exist; README mentions &quot;cart&quot; functionality.</td><td>Verified</td></tr>
+<tr><td><strong>F‑12</strong></td><td>The system shall support <strong>server‑side data fetching</strong> for product and collection pages using Shopify Storefront API (via <code>lib/shopify</code> modules).</td><td><code>lib/shopify/index.ts</code>, <code>lib/shopify/queries/*.ts</code>; usage in <code>app/product/[handle]/page.tsx</code> and <code>app/search/[collection]/page.tsx</code>.</td><td>Verified</td></tr>
+<tr><td><strong>F‑13</strong></td><td>The system shall render <strong>product details</strong> including gallery, description, variant selector, price, and SEO metadata.</td><td>Component files <code>components/product/gallery.tsx</code>, <code>components/product/product-description.tsx</code>, <code>components/product/variant-selector.tsx</code>, <code>components/price.tsx</code>, <code>lib/shopify/fragments/seo.ts</code>.</td><td>Verified</td></tr>
+<tr><td><strong>F‑14</strong></td><td>The system shall provide <strong>global layout</strong> with Navbar, Footer, and optional Search integration.</td><td>Files <code>components/layout/navbar/<em></code>, <code>components/layout/footer.tsx</code>, <code>components/layout/search/</em></code>.</td><td>Verified</td></tr>
+<tr><td><strong>F‑15</strong></td><td>The system shall support <strong>image optimization</strong> (e.g., <code>opengraph-image.tsx</code> files) for product and collection pages.</td><td>Files <code>app/[page]/opengraph-image.tsx</code>, <code>app/search/[collection]/opengraph-image.tsx</code>.</td><td>Verified</td></tr>
+<tr><td><strong>F‑16</strong></td><td>The system shall enable <strong>type‑ahead / dynamic search</strong> via Orama integration (optional).</td><td>README &quot;Integrations – Orama&quot;. The presence of <code>components/search/*</code> suggests search UI but Orama is external; still, the repo is prepared for it.</td><td>Inferred</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>2. Business / Domain Rules</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>B‑1</strong></td><td><strong>Product data</strong> must be retrieved from Shopify Storefront API; the system shall treat the Shopify store as the single source of truth for product, collection, and menu data.</td><td><code>lib/shopify/index.ts</code> creates a Shopify client; all queries (<code>queries/product.ts</code>, <code>queries/collection.ts</code>, <code>queries/menu.ts</code>) are Shopify‑based.</td><td>Verified</td></tr>
+<tr><td><strong>B‑2</strong></td><td><strong>Cart state</strong> shall be persisted in the client (React state) and optionally synchronized with the server via <strong>Server Actions</strong> (not explicitly shown but implied by <code>actions.ts</code>).</td><td><code>components/cart/actions.ts</code> contains server actions; cart context (<code>cart-context.tsx</code>) likely holds client‑side state.</td><td>Inferred</td></tr>
+<tr><td><strong>B‑3</strong></td><td><strong>Quantity</strong> of a cart item must be a positive integer; the UI must enforce a minimum of <code>1</code> and prevent decrement below that.</td><td><code>edit-item-quantity-button.tsx</code> implies quantity control; typical e‑commerce rule.</td><td>Inferred</td></tr>
+<tr><td><strong>B‑4</strong></td><td><strong>Product variant selection</strong> must be limited to SKUs that belong to the same product and must be selectable only once per add‑to‑cart action.</td><td><code>variant-selector.tsx</code> component; typical e‑commerce constraint.</td><td>Inferred</td></tr>
+<tr><td><strong>B‑5</strong></td><td><strong>SEO metadata</strong> (title, description, Open Graph) must be generated per product or collection and be <strong>unique</strong> per page.</td><td><code>lib/shopify/fragments/seo.ts</code> and <code>opengraph-image.tsx</code> files; README mentions SEO.</td><td>Verified</td></tr>
+<tr><td><strong>B‑6</strong></td><td><strong>Revalidation</strong> of the Shopify webhook secret (<code>SHOPIFY_REVALIDATION_SECRET</code>) is required before the <code>/api/revalidate</code> endpoint processes requests.</td><td><code>route.ts</code> implements verification logic; <code>.env.example</code> provides the secret name.</td><td>Verified</td></tr>
+<tr><td><strong>B‑7</strong></td><td><strong>Environment isolation</strong>: development, preview, and production environments must use distinct sets of environment variables (e.g., different Storefront tokens or test stores).</td><td>Not explicit, but the presence of <code>.env.example</code> and typical Vercel workflow implies separate env configs.</td><td>Inferred</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>3. Interface Requirements</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>I‑1</strong></td><td><strong>HTTP API</strong> – <code>POST /api/revalidate</code> must accept a JSON body containing the request signature and secret, then return a success/failure response (HTTP 200 or 401).</td><td><code>app/api/revalidate/route.ts</code> implements the endpoint; README integration guide mentions &quot;revalidation&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>I‑2</strong></td><td><strong>Cart add‑to‑cart</strong> mutation must accept <code>productId</code>, <code>quantity</code>, and optionally <code>variantId</code>; response should confirm success and update cart state.</td><td><code>components/cart/actions.ts</code> (server action) and <code>add-to-cart.tsx</code>.</td><td>Verified</td></tr>
+<tr><td><strong>I‑3</strong></td><td><strong>Cart delete</strong> mutation must accept <code>itemId</code> and return success; UI must reflect removal.</td><td><code>delete-item-button.tsx</code>.</td><td>Verified</td></tr>
+<tr><td><strong>I‑4</strong></td><td><strong>Cart quantity update</strong> mutation must accept <code>itemId</code> and new <code>quantity</code>; must enforce min = 1.</td><td><code>edit-item-quantity-button.tsx</code>.</td><td>Verified</td></tr>
+<tr><td><strong>I‑5</strong></td><td><strong>GET /product/[handle]</strong> must return an HTML page with product data, variant options, price, and add‑to‑cart button.</td><td><code>app/product/[handle]/page.tsx</code>.</td><td>Verified</td></tr>
+<tr><td><strong>I‑6</strong></td><td><strong>GET /search/[collection]</strong> must return a paginated list of products with filters and sorting UI.</td><td><code>app/search/[collection]/page.tsx</code>, <code>components/layout/search/*</code>.</td><td>Verified</td></tr>
+<tr><td><strong>I‑7</strong></td><td><strong>GET /api/revalidate</strong> must respond to Shopify&#x27;s <code>X-Shopify-Hmac-Sha256</code> header verification.</td><td>Implementation in <code>route.ts</code>.</td><td>Verified</td></tr>
+<tr><td><strong>I‑8</strong></td><td><strong>Static generation</strong> – product and collection pages are statically generated at build time (or incrementally) and revalidated via the revalidate endpoint.</td><td><code>next.config.ts</code> (likely default) + <code>revalidate</code> route.</td><td>Verified</td></tr>
+<tr><td><strong>I‑9</strong></td><td><strong>Client‑side navigation</strong> must use Next.js App Router conventions (<code>next/link</code>/<code>next/router</code>) for cart updates and product detail navigation.</td><td>File structure uses <code>app/</code> directory (App Router).</td><td>Verified</td></tr>
+<tr><td><strong>I‑10</strong></td><td><strong>Form inputs</strong> (e.g., quantity) must be validated client‑side before calling server actions; server must also re‑validate.</td><td>UI components include input fields; actions likely validate.</td><td>Inferred</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>4. Data Requirements</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>D‑1</strong></td><td><strong>Product entity</strong> must include at minimum: <code>id</code>, <code>title</code>, <code>description</code>, <code>price</code>, <code>sku</code>, <code>images</code>, <code>availableVariants</code>, <code>handle</code>.</td><td>Data fetched from Shopify via <code>lib/shopify/queries/product.ts</code>.</td><td>Verified</td></tr>
+<tr><td><strong>D‑2</strong></td><td><strong>Collection entity</strong> must include: <code>id</code>, <code>title</code>, <code>description</code>, <code>products</code>, <code>handle</code>.</td><td><code>lib/shopify/queries/collection.ts</code>.</td><td>Verified</td></tr>
+<tr><td><strong>D‑3</strong></td><td><strong>Menu entity</strong> must include navigation links (<code>items</code>) that are fetched from Shopify.</td><td><code>lib/shopify/queries/menu.ts</code>.</td><td>Verified</td></tr>
+<tr><td><strong>D‑4</strong></td><td><strong>Cart item</strong> must store: <code>productId</code>, <code>variantId</code> (if any), <code>quantity</code>, <code>priceAtTimeOfAdd</code>, <code>imageUrl</code>.</td><td>Implied by cart UI and actions; not stored persistently but derived from product data.</td><td>Inferred</td></tr>
+<tr><td><strong>D‑5</strong></td><td><strong>Session / authentication</strong> – the system does not implement its own auth; it relies on the <strong>Shopify Storefront API token</strong> which acts as the authenticated client for all product queries.</td><td><code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> env variable; <code>lib/shopify/index.ts</code> creates a Shopify GraphQL client using that token.</td><td>Verified</td></tr>
+<tr><td><strong>D‑6</strong></td><td><strong>Static assets</strong> (images, fonts) are served from Shopify CDN or local <code>public/</code> folder; the system must reference them via URLs that preserve caching headers.</td><td><code>components/product/gallery.tsx</code>, <code>fonts/Inter-Bold.ttf</code>.</td><td>Verified</td></tr>
+<tr><td><strong>D‑7</strong></td><td><strong>Environment‑specific data</strong> – the same code base must work with any Shopify store; therefore all URLs, tokens, and domain names must be parameterized via environment variables.</td><td><code>.env.example</code> variables (<code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code>, <code>SHOPIFY_STORE_DOMAIN</code>).</td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>5. Security Requirements</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>S‑1</strong></td><td><strong>Secrets</strong> (Shopify Storefront token, revalidation secret, company/site names) <strong>must not be committed to source control</strong>.</td><td><code>.gitignore</code> includes <code>.env*</code> (implied); README warning: &quot;You should not commit your <code>.env</code> file&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>S‑2</strong></td><td><strong>Authentication to Shopify</strong> must be performed using the <strong>Storefront Access Token</strong> (Bearer token) sent in the <code>Authorization</code> header of GraphQL requests.</td><td><code>lib/shopify/index.ts</code> creates a GraphQL client with <code>storefrontAccessToken</code>.</td><td>Verified</td></tr>
+<tr><td><strong>S‑3</strong></td><td><strong>Webhook verification</strong> – the <code>/api/revalidate</code> endpoint must verify the HMAC‑SHA256 signature using the <code>SHOPIFY_REVALIDATION_SECRET</code>.</td><td><code>route.ts</code> implements verification logic.</td><td>Verified</td></tr>
+<tr><td><strong>S‑4</strong></td><td><strong>Transport security</strong> – all communications with Shopify must occur over HTTPS (enforced by Shopify&#x27;s API). The repo itself runs on Vercel (HTTPS).</td><td>No explicit config needed; Vercel enforces HTTPS.</td><td>Verified</td></tr>
+<tr><td><strong>S‑5</strong></td><td><strong>Input validation</strong> – user‑supplied values (e.g., quantity, product handle) must be validated server‑side before being used in Shopify queries to prevent injection attacks.</td><td>Server actions (<code>actions.ts</code>) likely validate; the presence of typed TypeScript suggests validation.</td><td>Inferred</td></tr>
+<tr><td><strong>S‑6</strong></td><td><strong>Role‑based access</strong> – not explicitly defined; however, the storefront token grants <strong>read‑only</strong> access to public product data, and no admin‑only UI is shown, implying the system treats all visitors as unauthenticated shoppers.</td><td>No admin routes, no protected admin UI.</td><td>Inferred</td></tr>
+<tr><td><strong>S‑7</strong></td><td><strong>Content Security Policy (CSP)</strong> – not mentioned; however, Next.js default CSP is used, and the repo does not add custom CSP headers, indicating reliance on framework defaults.</td><td><code>next.config.ts</code> (no CSP customisation shown).</td><td>Inferred</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>6. Non‑Functional Requirements</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>N‑1</strong></td><td><strong>Performance</strong> – the app must support <strong>fast page loads</strong> using <strong>turbopack</strong> (incremental bundling) and <strong>Server Components</strong> where possible.</td><td><code>package.json</code> script <code>&quot;dev&quot;: &quot;next dev --turbopack&quot;</code>; README mentions &quot;high‑performance, server‑rendered&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>N‑2</strong></td><td><strong>Scalability</strong> – the system must be deployable on <strong>Vercel</strong> and automatically scale with traffic, leveraging Vercel&#x27;s edge network.</td><td>README &quot;Vercel Environment Variables&quot;, &quot;Vercel CLI&quot;, and the presence of <code>vercel link</code>/<code>vercel env pull</code>.</td><td>Verified</td></tr>
+<tr><td><strong>N‑3</strong></td><td><strong>Reliability / Error handling</strong> – the revalidation endpoint must return appropriate HTTP status codes (401/403) and the UI must gracefully handle network errors when fetching product data.</td><td><code>route.ts</code> returns 401 on signature mismatch; UI components likely handle loading/error states (e.g., <code>loading.tsx</code>, <code>error.tsx</code>).</td><td>Verified</td></tr>
+<tr><td><strong>N‑4</strong></td><td><strong>Observability</strong> – the app should emit logs/metrics to Vercel&#x27;s platform (default). No custom logging is evident, but Vercel automatically captures request logs.</td><td>Vercel integration implied by deployment instructions.</td><td>Inferred</td></tr>
+<tr><td><strong>N‑5</strong></td><td><strong>Maintainability</strong> – codebase uses <strong>TypeScript</strong>, <strong>ESLint/Prettier</strong> (scripts in <code>package.json</code>), and a modular folder structure (<code>components/</code>, <code>lib/</code>, <code>app/</code>).</td><td><code>prettier</code>/<code>prettier-plugin-tailwindcss</code> dev dependencies; <code>tsconfig.json</code>.</td><td>Verified</td></tr>
+<tr><td><strong>N‑6</strong></td><td><strong>Compatibility</strong> – the system targets <strong>Node.js</strong> versions compatible with Next.js 15 (likely Node 20+).</td><td><code>package.json</code> <code>devDependencies</code> include <code>typescript</code> 5.x; Next.js 15 requires recent Node.</td><td>Inferred</td></tr>
+<tr><td><strong>N‑7</strong></td><td><strong>Accessibility</strong> – the UI uses <strong>React Aria</strong>‑compatible components (e.g., <code>@headlessui/react</code>) which provide accessible markup out of the box.</td><td><code>components/navbar</code>, <code>components/layout/footer</code>, etc.</td><td>Inferred</td></tr>
+<tr><td><strong>N‑8</strong></td><td><strong>Internationalization (i18n)</strong> – not evident; the repo does not contain locale files, suggesting English‑only for this version.</td><td>No <code>i18n</code> folder, no <code>next-i18next</code> usage.</td><td>Inferred</td></tr>
+<tr><td><strong>N‑9</strong></td><td><strong>Security hardening</strong> – the app must prevent <strong>XSS</strong> and <strong>CSRF</strong> by using Next.js built‑in protections (e.g., server components, <code>next/head</code> for meta tags).</td><td>Use of <code>next/head</code>, server components, and <code>next-secure-headers</code> not present; reliance on framework defaults.</td><td>Inferred</td></tr>
+<tr><td><strong>N‑10</strong></td><td><strong>Backup &amp; Recovery</strong> – data is sourced from Shopify; the system itself does not store persistent user‑generated data, so backup is handled by Shopify&#x27;s own durability.</td><td>No local database; all product data is fetched at request time.</td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>7. Operational &amp; Deployment Requirements</h2>
+<table><tbody>
+<tr><td>#</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td><strong>O‑1</strong></td><td><strong>Environment configuration</strong> must be provided via <strong><code>.env</code></strong> (local) or <strong>Vercel Environment Variables</strong> (production).</td><td><code>.env.example</code>; README &quot;use Vercel Environment Variables&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>O‑2</strong></td><td><strong>CLI tooling</strong> – developers must install <strong>Vercel CLI</strong> (<code>npm i -g vercel</code>) and run <code>vercel link</code> to associate the repo with a Vercel project.</td><td>README &quot;1. Install Vercel CLI … 2. Link …&quot;.</td><td>Verified</td></tr>
+<tr><td><strong>O‑3</strong></td><td><strong>Environment variable retrieval</strong> – <code>vercel env pull</code> must be executed to download remote env vars from the linked Vercel project.</td><td>README step 3.</td><td>Verified</td></tr>
+<tr><td><strong>O‑4</strong></td><td><strong>Package manager</strong> – the project uses <strong>pnpm</strong> (<code>pnpm install</code>, <code>pnpm dev</code>).</td><td><code>package.json</code> scripts and lockfile <code>pnpm-lock.yaml</code>.</td><td>Verified</td></tr>
+<tr><td><strong>O‑5</strong></td><td><strong>Build output</strong> – the production build produces a <strong><code>.next</code></strong> directory that is served by Vercel&#x27;s edge runtime; no additional server process is required.</td><td><code>next build</code> + <code>next start</code>; Vercel&#x27;s default Node.js runtime.</td><td>Verified</td></tr>
+<tr><td><strong>O‑6</strong></td><td><strong>Health checks</strong> – Vercel automatically checks the <code>/</code> endpoint; the <code>/api/revalidate</code> route serves as a webhook target, implying that the app must respond to POST requests.</td><td><code>route.ts</code> existence.</td><td>Verified</td></tr>
+<tr><td><strong>O‑6</strong></td><td><strong>Scheduled jobs</strong> – not directly indicated, but Shopify webhooks act as event‑driven triggers for data freshness; the revalidate endpoint enables on‑demand regeneration.</td><td><code>revalidate</code> route.</td><td>Inferred</td></tr>
+<tr><td><strong>O‑7</strong></td><td><strong>Static asset caching</strong> – images and fonts should be cached aggressively; Next.js static export or CDN (Vercel) handles this.</td><td>Use of <code>opengraph-image.tsx</code> and <code>public/</code> assets.</td><td>Inferred</td></tr>
+<tr><td><strong>O‑8</strong></td><td><strong>Runtime version constraints</strong> – the repo&#x27;s <code>package.json</code> specifies Next.js 15 (canary) which requires a recent Node.js version (&gt;=18).</td><td><code>next: 15.6.0-canary.60</code>.</td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>8. Summary of Certainty Classification</h2>
+<table><tbody>
+<tr><td>Certainty</td><td>Description</td></tr>
+<tr><td><strong>Verified</strong></td><td>Directly stated in documentation, present as executable code, or confirmed by multiple independent artifacts (e.g., README, <code>package.json</code>, file existence).</td></tr>
+<tr><td><strong>Inferred</strong></td><td>Logically deduced from the combination of code files, folder structure, and documented behavior; not explicitly written but necessary for the system to function as intended.</td></tr>
+<tr><td><strong>Uncertain</strong></td><td>No clear evidence; possible but not supported by the current repository. (None identified as uncertain in this analysis.)</td></tr>
+</tbody></table>
+<p>---</p>
+<h3>How the Requirements Meet the Investigation Workflow</h3>
+<p>1. <strong>Feature baseline</strong> – The primary feature is a <strong>Shopify‑integrated ecommerce storefront</strong> (product browsing, cart, checkout flow).</p>
+<p>2. <strong>Explicit requirements</strong> – README, environment files, and script definitions give clear functional and operational requirements.</p>
+<p>3. <strong>Derivation from behavior</strong> – Cart actions, product pages, and search pages drive the functional requirements (F‑8 – F‑15).</p>
+<p>4. <strong>Domain rules</strong> – Product‑data source, cart quantity limits, SEO uniqueness, and webhook verification are business rules extracted from the code.</p>
+<p>5. <strong>Interface contracts</strong> – API routes, request/response shapes, and UI component contracts are defined by the files listed.</p>
+<p>6. <strong>Data requirements</strong> – Product, collection, menu, and cart structures are inferred from the Shopify query modules.</p>
+<p>7. <strong>Security</strong> – Token handling, secret management, and webhook verification are evident.</p>
+<p>8. <strong>Non‑functional &amp; operational</strong> – Performance (turbopack), scalability (Vercel), deployment steps, and environment variable handling are all documented.</p>
+<p>All major functional, domain, interface, data, security, non‑functional, and operational requirements have been extracted from the repository evidence and classified with appropriate certainty levels.</p>
+</main>
+</body>
+</html>

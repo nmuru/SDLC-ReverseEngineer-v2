@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>technology-architecture</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Technology Architecture: Next.js Commerce</h1>
+<h2>Architecture Diagram</h2>
+<div class="mermaid">flowchart LR
+    User[&quot;👤 User / Browser&quot;]
+
+    subgraph Vercel[&quot;Vercel Hosting / Deployment&quot;]
+        NextJS[&quot;Next.js App Router\n(React Server Components + Client Components)&quot;]
+    end
+
+    subgraph Frontend[&quot;Frontend Layer&quot;]
+        Layout[&quot;Root Layout\n(CartProvider, Navbar)&quot;]
+        Pages[&quot;Page Components\n(Home, Search, Product, Collection)&quot;]
+        CartUI[&quot;Cart Modal &amp; UI\n(React Client Components)&quot;]
+        NavbarUI[&quot;Navbar &amp; Search UI&quot;]
+    end
+
+    subgraph State[&quot;State Management&quot;]
+        CartCtx[&quot;Cart Context\nuseOptimistic + React Context&quot;]
+    end
+
+    subgraph Server[&quot;Server / API Layer&quot;]
+        ShopifyLib[&quot;Shopify Integration Layer\n(lib/shopify — GraphQL queries &amp; mutations)&quot;]
+        RevalRoute[&quot;API Route\n/app/api/revalidate/route.ts&quot;]
+    end
+
+    subgraph External[&quot;External Systems&quot;]
+        Shopify[&quot;Shopify Headless Store\n(GraphQL API)&quot;]
+        VercelEnv[&quot;Vercel Platform\n(Deployment &amp; Environment)&quot;]
+    end
+
+    User --&gt;|HTTP/HTTPS| NextJS
+
+    NextJS --&gt; Layout
+    Layout --&gt; Pages
+    Layout --&gt; CartUI
+    Layout --&gt; NavbarUI
+
+    Pages --&gt;|Server Components\nfetch data| ShopifyLib
+    NavbarUI --&gt;|Server Components\ngetMenu| ShopifyLib
+    CartUI --&gt;|Client Actions\naddItem, removeItem| ShopifyLib
+
+    ShopifyLib --&gt;|REST/GraphQL\nPOST /graphql| Shopify
+    Shopify --&gt;|Product data,\nimages, cart, collections| ShopifyLib
+
+    CartUI --&gt;|&quot;use server&quot; Form Actions\naddItem, updateItemQuantity| ShopifyLib
+    ShopifyLib --&gt;|cookies\ncartId| CartCtx
+    CartCtx --&gt;|optimistic updates| CartUI
+
+    Shopify --&gt;|&quot;x-shopify-topic\nwebhook POST&quot;| RevalRoute
+    RevalRoute --&gt;|revalidateTag\ncache invalidation| ShopifyLib
+
+    NextJS --&gt;|VERCEL_PROJECT_PRODUCTION_URL\nbaseUrl, config| VercelEnv
+
+    style Vercel fill:#f0f0f0,stroke:#333
+    style External fill:#e8e8e8,stroke:#666</div>
+<h2>Overview</h2>
+<p>This repository is <strong>Next.js Commerce</strong>, a headless e-commerce storefront that separates the presentation layer from the commerce backend. The application is a monolithic Next.js App Router application that serves as both the frontend and the API orchestration layer, communicating with <strong>Shopify</strong> as the headless commerce platform via its GraphQL Admin/Storefront API.</p>
+<h2>Major Runtime Components</h2>
+<h3>1. Next.js App Router Frontend</h3>
+<p><strong>Responsibility</strong>: The primary application runtime. Handles routing, server-side rendering, client-side hydration, and composition of all UI components.</p>
+<p><strong>Implementation</strong>: <code>app/layout.tsx</code>, <code>app/page.tsx</code>, <code>app/product/[handle]/page.tsx</code>, <code>app/search/</code> directory, <code>app/api/revalidate/route.ts</code>.</p>
+<p><strong>Evidence</strong>:</p>
+<ul>
+<li><code>next.config.ts</code> enables experimental features: <code>ppr: true</code>, <code>inlineCss: true</code>, <code>useCache: true</code> — indicating Partial Prerendering and fine-grained caching strategy</li>
+<li><code>package.json</code> specifies <code>&quot;next&quot;: &quot;15.6.0-canary.60&quot;</code> and <code>&quot;react&quot;: &quot;19.0.0&quot;</code></li>
+<li><code>app/layout.tsx</code> is the root layout, an async server component that passes a <code>cartPromise</code> to <code>CartProvider</code> without awaiting it (streaming pattern)</li>
+<li>Pages use React Server Components by default (<code>async</code> default exports without <code>&quot;use client&quot;</code>)</li>
+</ul>
+<p><strong>Runtime</strong>: Executes on Vercel edge/middleware or Node.js runtime depending on route segment configuration.</p>
+<p>---</p>
+<h3>2. Cart Context &amp; State Management</h3>
+<p><strong>Responsibility</strong>: Manages the shopping cart as optimistic UI state shared across client components. Decouples UI responsiveness from server-side cart synchronization.</p>
+<p><strong>Implementation</strong>: <code>components/cart/cart-context.tsx</code>, <code>components/cart/actions.ts</code>, <code>components/cart/modal.tsx</code>, <code>components/cart/add-to-cart.tsx</code></p>
+<p><strong>Evidence</strong>:</p>
+<ul>
+<li><code>cart-context.tsx</code> creates a <code>CartContext</code> using <code>createContext</code>, exposes <code>useCart()</code> hook</li>
+<li>Uses <code>useOptimistic</code> for instant UI updates before server confirmation</li>
+<li>Cart state is initialized from a <code>Promise&lt;Cart | undefined&gt;</code> passed from the server via <code>CartProvider cartPromise={cart}</code> in <code>layout.tsx</code></li>
+<li><code>&quot;use client&quot;</code> directives on all cart interaction components</li>
+<li><code>actions.ts</code> contains <code>&quot;use server&quot;</code> server actions for <code>addItem</code>, <code>removeItem</code>, <code>updateItemQuantity</code>, <code>redirectToCheckout</code>, <code>createCartAndSetCookie</code></li>
+</ul>
+<p><strong>Communication</strong>: Client components call <code>useCart()</code> to access cart state and <code>addCartItem()</code> / <code>updateCartItem()</code> for optimistic updates. Server actions (<code>addItem</code>, <code>removeItem</code>) sync with Shopify and call <code>updateTag(TAGS.cart)</code> to invalidate Next.js cache.</p>
+<p>---</p>
+<h3>3. Shopify Integration Layer</h3>
+<p><strong>Responsibility</strong>: Single source of truth for all Shopify GraphQL interactions. Encapsulates queries, mutations, data reshaping, caching tags, and revalidation logic.</p>
+<p><strong>Implementation</strong>: <code>lib/shopify/index.ts</code>, <code>lib/shopify/queries/</code>, <code>lib/shopify/mutations/</code>, <code>lib/shopify/fragments/</code>, <code>lib/shopify/types.ts</code></p>
+<p><strong>Evidence</strong>:</p>
+<ul>
+<li><code>lib/shopify/index.ts</code> exports <code>shopifyFetch&lt;T&gt;()</code> — the core HTTP function that POSTs to Shopify&#x27;s GraphQL endpoint with <code>X-Shopify-Storefront-Access-Token</code> header</li>
+<li>GraphQL queries live in <code>lib/shopify/queries/</code> (cart, collection, menu, page, product)</li>
+<li>GraphQL mutations live in <code>lib/shopify/mutations/cart.ts</code> (createCart, addToCart, removeFromCart, editCartItems)</li>
+<li>Data reshaping functions (<code>reshapeCart</code>, <code>reshapeProduct</code>, <code>reshapeCollection</code>) transform Shopify raw responses into application types</li>
+<li>Uses <code>unstable_cacheLife</code> and <code>unstable_cacheTag</code> from <code>next/cache</code> for caching with tags <code>collections</code>, <code>products</code>, <code>cart</code></li>
+<li><code>lib/shopify/types.ts</code> defines all TypeScript types for Shopify responses (Product, Collection, Cart, Menu, Page, etc.)</li>
+<li><code>lib/type-guards.ts</code> provides <code>isShopifyError()</code> for error handling</li>
+</ul>
+<p><strong>Key Configuration</strong> (<code>lib/constants.ts</code>):</p>
+<table><tbody>
+<tr><td>Constant</td><td>Value</td><td>Purpose</td></tr>
+<tr><td><code>SHOPIFY_GRAPHQL_API_ENDPOINT</code></td><td><code>/api/2023-01/graphql.json</code></td><td>Shopify API versioned endpoint</td></tr>
+<tr><td><code>HIDDEN_PRODUCT_TAG</code></td><td><code>nextjs-frontend-hidden</code></td><td>Filter for hidden products</td></tr>
+<tr><td><code>TAGS.collections</code></td><td><code>collections</code></td><td>Cache invalidation tag</td></tr>
+<tr><td><code>TAGS.products</code></td><td><code>products</code></td><td>Cache invalidation tag</td></tr>
+<tr><td><code>TAGS.cart</code></td><td><code>cart</code></td><td>Cache invalidation tag</td></tr>
+</tbody></table>
+<p>---</p>
+<h3>4. Presentation Components</h3>
+<p><strong>Responsibility</strong>: UI composition using Tailwind CSS, Headless UI, and Heroicons.</p>
+<p><strong>Component Inventory</strong>:</p>
+<table><tbody>
+<tr><td>Component</td><td>Type</td><td>Evidence</td></tr>
+<tr><td><code>components/layout/navbar/index.tsx</code></td><td>Async Server Component</td><td>Fetches menu from Shopify</td></tr>
+<tr><td><code>components/layout/navbar/search.tsx</code></td><td>Client Component (<code>&quot;use client&quot;</code>)</td><td>Search form with typeahead</td></tr>
+<tr><td><code>components/layout/footer.tsx</code></td><td>Async Server Component</td><td>Uses <code>Suspense</code> fallback</td></tr>
+<tr><td><code>components/cart/modal.tsx</code></td><td>Client Component</td><td><code>@headlessui/react</code> Dialog for cart drawer</td></tr>
+<tr><td><code>components/product/gallery.tsx</code></td><td>Client Component</td><td>Product image gallery</td></tr>
+<tr><td><code>components/product/product-description.tsx</code></td><td>Client Component</td><td>Product details and add-to-cart</td></tr>
+<tr><td><code>components/product/variant-selector.tsx</code></td><td>Client Component</td><td>Variant selection logic</td></tr>
+<tr><td><code>components/grid/</code></td><td>Multiple</td><td>Grid layout components</td></tr>
+<tr><td><code>components/carousel.tsx</code></td><td>Client Component</td><td>Carousel/slider UI</td></tr>
+</tbody></table>
+<p><strong>Dependencies</strong>: <code>@headlessui/react</code>, <code>@heroicons/react</code>, <code>tailwindcss</code>, <code>@tailwindcss/typography</code>, <code>@tailwindcss/container-queries</code></p>
+<p>---</p>
+<h3>5. Shopify External Commerce Platform</h3>
+<p><strong>Responsibility</strong>: Headless commerce backend providing products, collections, cart state, and inventory.</p>
+<p><strong>Evidence</strong>:</p>
+<ul>
+<li><code>.env.example</code> defines <code>SHOPIFY_STORE_DOMAIN</code>, <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code>, <code>SHOPIFY_REVALIDATION_SECRET</code></li>
+<li><code>lib/shopify/index.ts</code> calls <code>fetch(endpoint, { method: &quot;POST&quot;, headers: { &quot;X-Shopify-Storefront-Access-Token&quot;: key } })</code></li>
+<li><code>next.config.ts</code> configures <code>remotePatterns</code> for <code>cdn.shopify.com/s/files/**</code> to allow Next.js <code>next/image</code> optimization</li>
+<li><code>lib/utils.ts</code> validates <code>SHOPIFY_STORE_DOMAIN</code> and <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> on startup</li>
+<li><code>app/api/revalidate/route.ts</code> receives Shopify webhook topics (<code>collections/<em></code>, <code>products/</em></code>) to trigger cache revalidation</li>
+</ul>
+<p><strong>Communication</strong>: GraphQL REST API via <code>fetch</code>. Cart state persists via <code>cartId</code> cookie. Cache invalidation uses Next.js <code>revalidateTag()</code> called from the revalidation webhook.</p>
+<p>---</p>
+<h3>6. API Route: Revalidation Webhook</h3>
+<p><strong>Responsibility</strong>: Receives Shopify webhook notifications to invalidate stale cache.</p>
+<p><strong>Evidence</strong>: <code>app/api/revalidate/route.ts</code> exports <code>POST</code> handler that calls <code>revalidate(req)</code> from <code>lib/shopify/index.ts</code>. Validates <code>SHOPIFY_REVALIDATION_SECRET</code> query parameter and <code>x-shopify-topic</code> header. Calls <code>revalidateTag(TAGS.collections, &quot;seconds&quot;)</code> or <code>revalidateTag(TAGS.products, &quot;seconds&quot;)</code> on matching topics.</p>
+<h2>Communication Flows</h2>
+<h3>Flow 1: Product Browsing &amp; Search (Server-Side Rendering)</h3>
+<pre><code>User → Next.js Router → Page Component (Server Component)
+  → lib/shopify.getProducts() / getCollectionProducts()
+    → fetch(SHOPIFY_ENDPOINT, { query, variables })
+      → Shopify GraphQL API
+        → Reshaped Product/Collection data
+          → Cached via next/cache (tags: products, collections; life: days)
+            → Rendered JSX with Grid/ProductGridItems</code></pre>
+<h3>Flow 2: Cart Operations (Optimistic + Server Actions)</h3>
+<pre><code>User clicks &quot;Add to Cart&quot; → add-to-cart.tsx (client component)
+  → useCart().addCartItem(variant, product) — optimistic UI update
+  → form action calls addItem() from components/cart/actions.ts (&quot;use server&quot;)
+    → lib/shopify.addToCart([{merchandiseId, quantity}])
+      → fetch(SHOPIFY_ENDPOINT, mutation: cartLinesAdd)
+        → cartId from cookies()
+      → updateTag(TAGS.cart) — invalidates Next.js cart cache
+    → re-render with updated cart context</code></pre>
+<h3>Flow 3: Shopify Webhook Revalidation</h3>
+<pre><code>Shopify → POST /api/revalidate (x-shopify-topic, secret)
+  → validates SHOPIFY_REVALIDATION_SECRET
+  → matches topic to collection/product webhooks
+  → revalidateTag(TAGS.collections, &quot;seconds&quot;) or revalidateTag(TAGS.products, &quot;seconds&quot;)
+  → Next.js cache invalidated on next request</code></pre>
+<h2>Data Stores &amp; Persistence</h2>
+<table><tbody>
+<tr><td>Store</td><td>Technology</td><td>Evidence</td></tr>
+<tr><td><strong>Primary Data</strong></td><td>Shopify GraphQL API</td><td><code>lib/shopify/index.ts</code> — all products, collections, cart fetched from Shopify</td></tr>
+<tr><td><strong>Cart State</strong></td><td>React Context (in-memory) + cookies</td><td><code>cart-context.tsx</code> uses <code>useOptimistic</code>; <code>cartId</code> stored in browser cookie via <code>cookies().set(&quot;cartId&quot;, ...)</code></td></tr>
+<tr><td><strong>Server Cache</strong></td><td>Next.js Data Cache (<code>useCache: true</code>)</td><td><code>unstable_cacheLife(&quot;days&quot;)</code>, <code>cacheTag(TAGS.xxx)</code> in <code>lib/shopify</code></td></tr>
+<tr><td><strong>Configuration</strong></td><td>Environment variables</td><td><code>.env.example</code> defines Shopify credentials; <code>lib/utils.ts</code> validates them</td></tr>
+</tbody></table>
+<h2>Configuration Boundaries</h2>
+<h3>Environment Variables</h3>
+<table><tbody>
+<tr><td>Variable</td><td>Required</td><td>Purpose</td></tr>
+<tr><td><code>SHOPIFY_STORE_DOMAIN</code></td><td>Yes</td><td>Constructs GraphQL endpoint</td></tr>
+<tr><td><code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code></td><td>Yes</td><td>API authentication</td></tr>
+<tr><td><code>SHOPIFY_REVALIDATION_SECRET</code></td><td>Yes</td><td>Webhook validation</td></tr>
+<tr><td><code>COMPANY_NAME</code></td><td>No</td><td>Branding configuration</td></tr>
+<tr><td><code>SITE_NAME</code></td><td>No</td><td>Branding configuration</td></tr>
+<tr><td><code>VERCEL_PROJECT_PRODUCTION_URL</code></td><td>No</td><td><code>baseUrl</code> utility in <code>lib/utils.ts</code></td></tr>
+</tbody></table>
+<h3>Next.js Configuration</h3>
+<table><tbody>
+<tr><td>Setting</td><td>Value</td><td>Purpose</td></tr>
+<tr><td><code>experimental.ppr</code></td><td><code>true</code></td><td>Partial Prerendering enabled</td></tr>
+<tr><td><code>experimental.useCache</code></td><td><code>true</code></td><td>App Router caching enabled</td></tr>
+<tr><td>Image <code>remotePatterns</code></td><td><code>cdn.shopify.com</code></td><td>Restricts external image sources</td></tr>
+</tbody></table>
+<h2>Deployment &amp; Runtime Boundaries</h2>
+<p><strong>Deployment</strong>: Vercel platform. The README describes <code>vercel link</code>, <code>vercel env pull</code>, and Vercel integration with Shopify. The <code>baseUrl</code> utility checks <code>VERCEL_PROJECT_PRODUCTION_URL</code>.</p>
+<p><strong>Runtime</strong>: Next.js App Router with React 19 Server Components. The architecture uses server components by default with selective <code>&quot;use client&quot;</code> directives on interactive components (cart modal, search form, add-to-cart form).</p>
+<h2>Trust &amp; Security Boundaries</h2>
+<ul>
+<li><strong>Shopify API credentials</strong> are environment variables never committed to source</li>
+<li><strong>Webhook validation</strong> requires <code>SHOPIFY_REVALIDATION_SECRET</code> matching query parameter</li>
+<li><strong>Cart cookie</strong> (<code>cartId</code>) is the session identifier for cart operations</li>
+<li><strong>Content Security</strong>: Product images served from <code>cdn.shopify.com</code> with Next.js image optimization restricting remote patterns</li>
+</ul>
+<h2>Verified Component Classification</h2>
+<table><tbody>
+<tr><td>Component</td><td>Classification</td><td>Basis</td></tr>
+<tr><td>Next.js App Router</td><td>Verified</td><td><code>package.json</code>, <code>app/</code> directory, <code>next.config.ts</code></td></tr>
+<tr><td>Shopify GraphQL integration</td><td>Verified</td><td><code>lib/shopify/index.ts</code>, <code>.env.example</code>, <code>next.config.ts</code> remotePatterns</td></tr>
+<tr><td>Cart Context (React)</td><td>Verified</td><td><code>components/cart/cart-context.tsx</code>, <code>components/cart/actions.ts</code></td></tr>
+<tr><td>Cache strategy (Next.js <code>useCache</code>)</td><td>Verified</td><td><code>next.config.ts</code> + <code>lib/shopify/index.ts</code> <code>unstable_cache*</code> usage</td></tr>
+<tr><td>Revalidation API route</td><td>Verified</td><td><code>app/api/revalidate/route.ts</code>, <code>lib/shopify/index.ts</code> <code>revalidate()</code> export</td></tr>
+<tr><td>Vercel deployment</td><td>Verified</td><td><code>README.md</code>, <code>lib/utils.ts</code> <code>VERCEL_PROJECT_PRODUCTION_URL</code>, footer Deploy button</td></tr>
+<tr><td>Sonner toast notifications</td><td>Verified</td><td><code>package.json</code> dependency, <code>app/layout.tsx</code> <code>&lt;Toaster&gt;</code> import</td></tr>
+<tr><td>Headless UI Dialogs</td><td>Verified</td><td><code>package.json</code> <code>@headlessui/react</code>, <code>cart/modal.tsx</code> <code>&lt;Dialog&gt;</code> usage</td></tr>
+</tbody></table>
+<h2>Unknowns &amp; Limitations</h2>
+<ul>
+<li><strong>No explicit database layer</strong>: The repository does not use PostgreSQL, MongoDB, or any traditional database. All persistence is through Shopify and browser cookies.</li>
+<li><strong>No message queue</strong>: No Redis, RabbitMQ, or other async messaging infrastructure is present. Cache invalidation is synchronous via webhook.</li>
+<li><strong>No authentication service</strong>: User authentication (login, accounts) is not present in the codebase — this is a storefront-only application.</li>
+<li><strong>Search functionality</strong>: While the README mentions &quot;Orama&quot; as an integration for typeahead search, the current search implementation (<code>app/search/page.tsx</code>) uses Shopify&#x27;s <code>getProducts()</code> with a text query — no dedicated search service is wired up by default.</li>
+<li><strong>Testing</strong>: The <code>test</code> script in <code>package.json</code> only runs <code>pnpm prettier:check</code> — no unit/integration tests exist in the repository.</li>
+</ul>
+</main>
+</body>
+</html>

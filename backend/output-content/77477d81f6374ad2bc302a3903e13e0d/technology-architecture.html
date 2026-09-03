@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>technology-architecture</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Technology Architecture: Vercel/Commerce</h1>
+<h2>Overview</h2>
+<p>This repository is <strong>Next.js Commerce</strong> — a high-performance, server-rendered ecommerce storefront built with the <strong>Next.js App Router</strong> and <strong>Shopify</strong> as the headless commerce backend. There is no custom backend server; all application logic executes within the Next.js runtime on Vercel, communicating directly with Shopify&#x27;s GraphQL API and browser-native cart state management via React Server Components and Server Actions.</p>
+<p>---</p>
+<h2>Architecture Diagram</h2>
+<div class="mermaid">flowchart TD
+    User[👤 End User / Browser]
+
+    subgraph &quot;Vercel Edge / Next.js Runtime&quot;
+        F[Next.js App Router&lt;br/&gt;React Server Components&lt;br/&gt;Server Actions&lt;br/&gt;Suspense + useOptimistic]
+    end
+
+    subgraph &quot;Commerce Data Layer&quot;
+        Shopify[(Shopify GraphQL API&lt;br/&gt;Storefront Access Token)]
+    end
+
+    subgraph &quot;Edge Functions&quot;
+        Revalidate[API Route&lt;br/&gt;/api/revalidate]
+    end
+
+    User --&gt;|HTTP Requests| F
+    F --&gt;|GET / POST GraphQL&lt;br/&gt;Product, Collection,&lt;br/&gt;Cart, Menu, Page Queries| Shopify
+    F --&gt;|Webhook POST&lt;br/&gt;collections/products&lt;br/&gt;create/update/delete| Revalidate
+    Revalidate --&gt;|cache revalidation| F
+    F --&gt;|Cart Cookie + Mutations| Shopify
+
+    style F fill:#081833,color:#ffffff
+    style Shopify fill:#8a33cc,color:#ffffff
+    style Revalidate fill:#e8730a,color:#ffffff</div>
+<p>---</p>
+<h2>Major Runtime Components</h2>
+<h3>1. Next.js App Router — Frontend and Server Layer</h3>
+<p><strong>Responsibility:</strong> Serves all UI, handles routing, server-renders pages via React Server Components, executes Server Actions for cart mutations, and manages client-side state via React context and <code>useOptimistic</code>.</p>
+<p><strong>Technology:</strong> Next.js 15.6.0-canary.60, React 19.0.0, TypeScript 5.8.2</p>
+<p><strong>Key configuration (verified):</strong></p>
+<ul>
+<li><code>next.config.ts</code> enables experimental <code>ppr</code>, <code>inlineCss</code>, and <code>useCache</code></li>
+<li>Tailwind CSS v4 with PostCSS for styling</li>
+<li><code>@headlessui/react</code> for accessible dialogs/modals</li>
+<li><code>@heroicons/react</code> for iconography</li>
+</ul>
+<p><strong>Entry points:</strong></p>
+<table><tbody>
+<tr><td>File</td><td>Purpose</td></tr>
+<tr><td><code>app/layout.tsx</code></td><td>Root layout, initializes <code>CartProvider</code> with a server-side cart fetch</td></tr>
+<tr><td><code>app/page.tsx</code></td><td>Home page (<code>ThreeItemGrid</code>, <code>Carousel</code>, <code>Footer</code>)</td></tr>
+<tr><td><code>app/product/[handle]/page.tsx</code></td><td>Dynamic product pages with JSON-LD SEO metadata</td></tr>
+<tr><td><code>app/search/page.tsx</code></td><td>Product listing / search results</td></tr>
+<tr><td><code>app/search/[collection]/page.tsx</code></td><td>Collection-based browsing</td></tr>
+<tr><td><code>app/[page]/page.tsx</code></td><td>Editable CMS pages from Shopify</td></tr>
+<tr><td><code>app/api/revalidate/route.ts</code></td><td>Webhook endpoint for cache invalidation</td></tr>
+</tbody></table>
+<p><strong>Evidence certainty:</strong> Verified — all files present and functional routes confirmed.</p>
+<p>---</p>
+<h3>2. Shopify Integration Layer — Commerce Backend</h3>
+<p><strong>Responsibility:</strong> All communication with Shopify&#x27;s Storefront GraphQL API. Handles queries, mutations, response shaping, caching tags, and revalidation logic.</p>
+<p><strong>Technology:</strong> Native <code>fetch</code> to Shopify GraphQL endpoint, Next.js <code>unstable_cacheLife</code>/<code>unstable_cacheTag</code> for caching</p>
+<p><strong>Key module:</strong> <code>lib/shopify/index.ts</code></p>
+<p>Functions and operations:</p>
+<ul>
+<li><code>shopifyFetch&lt;T&gt;()</code> — Generic GraphQL transport function</li>
+<li>Product queries (<code>getProduct</code>, <code>getProducts</code>, <code>getProductRecommendations</code>)</li>
+<li>Collection queries (<code>getCollection</code>, <code>getCollections</code>, <code>getCollectionProducts</code>)</li>
+<li>Cart queries and mutations (<code>getCart</code>, <code>createCart</code>, <code>addToCart</code>, <code>removeFromCart</code>, <code>updateCart</code>)</li>
+<li>Menu and Page queries (<code>getMenu</code>, <code>getPage</code>, <code>getPages</code>)</li>
+<li><code>revalidate()</code> — Webhook handler for cache tag invalidation</li>
+</ul>
+<p><strong>Configuration (verified via <code>.env.example</code>):</strong></p>
+<ul>
+<li><code>SHOPIFY_STORE_DOMAIN</code> — Storefront domain</li>
+<li><code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> — Authentication token</li>
+<li><code>SHOPIFY_REVALIDATION_SECRET</code> — Webhook verification secret</li>
+</ul>
+<p><strong>Evidence certainty:</strong> Verified — the <code>lib/shopify/</code> directory contains all Shopify communication logic. The endpoint is constructed at runtime from environment variables.</p>
+<p>---</p>
+<h3>3. Cart Management System</h3>
+<p><strong>Responsibility:</strong> Shopping cart state management with optimistic UI updates and server-backed persistence via Shopify&#x27;s cart GraphQL API.</p>
+<p><strong>Technology:</strong> React Context (<code>cart-context.tsx</code>), <code>useOptimistic</code> for optimistic updates, Server Actions (<code>components/cart/actions.ts</code>) for mutations</p>
+<p><strong>Architecture flow:</strong></p>
+<p>1. <code>CartProvider</code> (in root layout) passes a <code>cartPromise</code> to context</p>
+<p>2. <code>useCart()</code> hook reads the promise and applies optimistic reducer updates locally</p>
+<p>3. Server Actions (<code>addItem</code>, <code>removeItem</code>, <code>updateItemQuantity</code>, <code>redirectToCheckout</code>) call <code>lib/shopify</code> cart functions</p>
+<p>4. Cart ID persisted in browser cookie (<code>cartId</code>)</p>
+<p>5. Cart created on first visit via <code>createCartAndSetCookie()</code></p>
+<p><strong>Key files:</strong></p>
+<ul>
+<li><code>components/cart/cart-context.tsx</code> — React context + optimistic reducer</li>
+<li><code>components/cart/actions.ts</code> — Server actions for cart mutations</li>
+<li><code>components/cart/modal.tsx</code> — Client-side cart UI with dialog transitions</li>
+<li><code>components/cart/open-cart.tsx</code>, <code>add-to-cart.tsx</code>, <code>delete-item-button.tsx</code>, <code>edit-item-quantity-button.tsx</code> — Cart sub-components</li>
+</ul>
+<p><strong>Evidence certainty:</strong> Verified — the cart system is fully implemented with optimistic updates and server-backed mutations.</p>
+<p>---</p>
+<h3>4. UI Component Library</h3>
+<p><strong>Responsibility:</strong> Presentation layer components shared across pages.</p>
+<p><strong>Technology:</strong> React, Tailwind CSS, <code>@headlessui/react</code>, <code>@heroicons/react</code>, <code>clsx</code>, <code>geist</code> font</p>
+<p><strong>Key components:</strong></p>
+<table><tbody>
+<tr><td>Component</td><td>Location</td><td>Purpose</td></tr>
+<tr><td>Navbar</td><td><code>components/layout/navbar/</code></td><td>Navigation with menu, search, cart trigger</td></tr>
+<tr><td>Footer</td><td><code>components/layout/footer/</code></td><td>Footer with menu links</td></tr>
+<tr><td>Product Grid</td><td><code>components/grid/</code></td><td>Grid layout (1/2/3 column responsive)</td></tr>
+<tr><td>Product</td><td><code>components/product/</code></td><td>Gallery, description, variant selector</td></tr>
+<tr><td>Cart</td><td><code>components/cart/</code></td><td>Modal, open/cart button, quantity controls</td></tr>
+<tr><td>Search</td><td><code>components/layout/search/</code></td><td>Search bar, collection filters, sort dropdown</td></tr>
+<tr><td>Carousel</td><td><code>components/carousel.tsx</code></td><td>Product carousel</td></tr>
+<tr><td>Price</td><td><code>components/price.tsx</code></td><td>Currency-formatted price display</td></tr>
+</tbody></table>
+<p><strong>Evidence certainty:</strong> Verified — 45 <code>.tsx</code> files contain the complete component tree.</p>
+<p>---</p>
+<h3>5. Cache and Revalidation System</h3>
+<p><strong>Responsibility:</strong> On-demand cache invalidation triggered by Shopify webhooks.</p>
+<p><strong>Technology:</strong> Next.js <code>revalidateTag()</code>, <code>unstable_cacheTag()</code>, API route</p>
+<p><strong>Flow:</strong></p>
+<pre><code>Shopify Webhook POST
+  → /api/revalidate
+  → Secret Validation
+  → revalidateTag(TAGS.products | TAGS.collections)
+  → Next.js Cache Invalidation
+  → 200 Response</code></pre>
+<p>Webhook topics handled:</p>
+<ul>
+<li><code>collections/create</code>, <code>collections/delete</code>, <code>collections/update</code></li>
+<li><code>products/create</code>, <code>products/delete</code>, <code>products/update</code></li>
+</ul>
+<p><strong>Cache tags (verified in <code>lib/constants.ts</code>):</strong></p>
+<table><tbody>
+<tr><td>Tag</td><td>Data Type</td><td>Cache Life</td></tr>
+<tr><td><code>collections</code></td><td>Collection data</td><td>Days</td></tr>
+<tr><td><code>products</code></td><td>Product data</td><td>Days</td></tr>
+<tr><td><code>cart</code></td><td>Cart data</td><td>Seconds, private</td></tr>
+</tbody></table>
+<p><strong>Evidence certainty:</strong> Verified — revalidation endpoint exists with secret validation and tag-based invalidation.</p>
+<p>---</p>
+<h2>Data Stores and Persistence</h2>
+<h3>Primary Data Store: Shopify GraphQL API</h3>
+<ul>
+<li><strong>Type:</strong> Remote SaaS commerce backend</li>
+<li><strong>Access:</strong> HTTPS POST to <code>https://{domain}/api/2023-01/graphql.json</code></li>
+<li><strong>Authentication:</strong> Storefront Access Token in request headers</li>
+<li><strong>Data types:</strong> Products, collections, pages, menus, cart operations</li>
+<li><strong>Caching:</strong> Next.js cache with tag-based invalidation (<code>cacheTag</code>, <code>cacheLife</code>)</li>
+<li><strong>Evidence:</strong> Directly visible in <code>lib/shopify/index.ts</code> and all query/mutation files</li>
+</ul>
+<h3>Secondary: Browser Cookies</h3>
+<ul>
+<li><strong>Cart ID (<code>cartId</code>)</strong> — Persists cart identity across requests</li>
+<li><strong>Evidence:</strong> <code>cookies()</code> API from Next.js used in cart actions</li>
+</ul>
+<h3>No Local Database</h3>
+<p>The repository contains no database driver, ORM, migration, or schema files. All persistent state is managed by Shopify and browser cookies.</p>
+<p>---</p>
+<h2>External Systems and Integrations</h2>
+<table><tbody>
+<tr><td>System</td><td>Role</td><td>Evidence</td></tr>
+<tr><td><strong>Shopify</strong></td><td>Commerce backend (products, cart, checkout, collections, pages)</td><td><code>.env.example</code>, <code>lib/shopify/index.ts</code>, <code>next.config.ts</code> remotePatterns</td></tr>
+<tr><td><strong>Vercel</strong></td><td>Hosting and edge runtime</td><td><code>baseUrl</code> uses <code>VERCEL_PROJECT_PRODUCTION_URL</code>, <code>vercel link</code> referenced in README</td></tr>
+<tr><td><strong>Tailwind CSS v4</strong></td><td>Styling framework</td><td><code>tailwindcss</code> in dependencies, <code>postcss.config.mjs</code></td></tr>
+<tr><td><strong>@headlessui/react</strong></td><td>Accessible UI components (modals, dialogs)</td><td>Dependency, used in <code>modal.tsx</code></td></tr>
+<tr><td><strong>@heroicons/react</strong></td><td>Icon library</td><td>Dependency, used throughout UI</td></tr>
+<tr><td><strong>geist</strong></td><td>Font family</td><td>Dependency, loaded in <code>layout.tsx</code></td></tr>
+<tr><td><strong>sonner</strong></td><td>Toast notifications</td><td>Dependency, used in <code>layout.tsx</code></td></tr>
+</tbody></table>
+<p>---</p>
+<h2>Configuration Boundaries</h2>
+<h3>Environment Variables (Verified in <code>.env.example</code>)</h3>
+<table><tbody>
+<tr><td>Variable</td><td>Purpose</td></tr>
+<tr><td><code>COMPANY_NAME</code></td><td>Display name</td></tr>
+<tr><td><code>SITE_NAME</code></td><td>Storefront title</td></tr>
+<tr><td><code>SHOPIFY_STORE_DOMAIN</code></td><td>Shopify store domain (required)</td></tr>
+<tr><td><code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code></td><td>API authentication (required)</td></tr>
+<tr><td><code>SHOPIFY_REVALIDATION_SECRET</code></td><td>Webhook verification (required)</td></tr>
+</tbody></table>
+<h3>Runtime Configuration</h3>
+<ul>
+<li><code>next.config.ts</code> — PPR enabled, inline CSS, cache enabled, image formats (AVIF/WebP), remote image patterns restricted to <code>cdn.shopify.com</code></li>
+<li><code>postcss.config.mjs</code> — Tailwind CSS PostCSS plugin</li>
+<li><code>tsconfig.json</code> — TypeScript configuration</li>
+</ul>
+<p>---</p>
+<h2>Communication Flows</h2>
+<h3>1. Page Request Flow (Server-Side Rendering)</h3>
+<pre><code>User → Next.js Router → Server Component → Shopify GraphQL Query → JSON Response → SSR HTML</code></pre>
+<ul>
+<li>All page data fetched on the server via async Server Components</li>
+<li><code>generateMetadata</code> functions run server-side for SEO (product, page metadata)</li>
+<li><code>Suspense</code> boundaries used for loading states on search, product gallery</li>
+</ul>
+<h3>2. Cart Mutation Flow (Server Action + Optimistic Update)</h3>
+<pre><code>User clicks Add/Remove/Update
+  → Client Component
+  → Server Action
+  → Shopify GraphQL Mutation
+  → Cart Cookie Update
+  → Cache Revalidation
+  → Optimistic UI Update</code></pre>
+<ul>
+<li>Server Actions execute on the server, call <code>lib/shopify</code> cart functions</li>
+<li><code>updateTag(TAGS.cart)</code> triggers cache revalidation</li>
+<li><code>useOptimistic</code> in <code>cart-context.tsx</code> applies changes instantly in the UI before the server responds</li>
+</ul>
+<h3>3. Webhook Revalidation Flow</h3>
+<pre><code>Shopify Webhook POST
+  → /api/revalidate
+  → Secret Validation
+  → revalidateTag()
+  → Next.js Cache Invalidation
+  → 200 Response</code></pre>
+<ul>
+<li>Shopify sends webhooks on product/collection changes</li>
+<li>Endpoint responds with 200 immediately to prevent retries</li>
+</ul>
+<h3>4. Navigation Flow</h3>
+<pre><code>User clicks link
+  → Next.js Link (prefetch=true)
+  → Next.js Router
+  → Server Component
+  → Page Content</code></pre>
+<ul>
+<li>All navigation uses Next.js <code>&lt;Link&gt;</code> with <code>prefetch={true}</code></li>
+<li>Search page uses <code>Suspense</code> for async data loading</li>
+</ul>
+<p>---</p>
+<h2>Deployment and Runtime Boundaries</h2>
+<h3>Runtime Environment</h3>
+<ul>
+<li><strong>Edge Runtime</strong> via Vercel (Next.js deployed on Vercel edge network)</li>
+<li><strong>No custom server</strong> — all logic runs within Next.js</li>
+<li><strong>No background workers or scheduled jobs</strong> identified in the repository</li>
+</ul>
+<h3>Build and Start</h3>
+<table><tbody>
+<tr><td>Command</td><td>Purpose</td></tr>
+<tr><td><code>next build</code></td><td>Production build</td></tr>
+<tr><td><code>next dev --turbopack</code></td><td>Development with Turbopack</td></tr>
+<tr><td><code>next start</code></td><td>Production server</td></tr>
+</tbody></table>
+<h3>Verification Notes</h3>
+<ul>
+<li><code>pnpm-lock.yaml</code> confirms pnpm is the package manager</li>
+<li><code>app/api/revalidate/route.ts</code> is the only API route — all other &quot;API&quot; communication happens through Shopify GraphQL</li>
+<li>No Dockerfiles, Kubernetes manifests, or CI/CD files present in the repository</li>
+</ul>
+<p>---</p>
+<h2>Summary of Architectural Certainty</h2>
+<table><tbody>
+<tr><td>Component</td><td>Classification</td><td>Confidence</td></tr>
+<tr><td>Next.js App Router + React Server Components</td><td>Verified</td><td>High — core framework files confirmed</td></tr>
+<tr><td>Shopify GraphQL as primary data source</td><td>Verified</td><td>High — <code>lib/shopify/index.ts</code> with all queries/mutations</td></tr>
+<tr><td>Cart system with optimistic updates</td><td>Verified</td><td>High — <code>cart-context.tsx</code> and <code>actions.ts</code> fully implemented</td></tr>
+<tr><td>Server Actions for cart mutations</td><td>Verified</td><td>High — <code>&quot;use server&quot;</code> directive in <code>actions.ts</code></td></tr>
+<tr><td>Cache revalidation via webhooks</td><td>Verified</td><td>High — <code>app/api/revalidate/route.ts</code> with secret validation</td></tr>
+<tr><td>Tailwind CSS + Headless UI + Heroicons</td><td>Verified</td><td>High — dependencies and usage confirmed</td></tr>
+<tr><td>Background workers / message queues</td><td>Not present</td><td>N/A — no evidence of async job infrastructure</td></tr>
+<tr><td>Local database / ORM</td><td>Not present</td><td>N/A — no database driver or schema files</td></tr>
+<tr><td>Custom backend API server</td><td>Not present</td><td>N/A — only webhook endpoint exists</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>Conclusion</h2>
+<p>The Vercel/Commerce repository implements a <strong>clean, single-runtime ecommerce architecture</strong>: a Next.js App Router application that serves as both the frontend UI and the API layer, communicating exclusively with Shopify&#x27;s GraphQL API for all commerce data. Cart state is managed through a React context with optimistic updates backed by Server Actions that mutate Shopify&#x27;s cart API and persist the cart ID in browser cookies. The entire system is deployed on Vercel&#x27;s edge network with tag-based cache invalidation triggered by Shopify webhooks. There is no custom backend server, no database, and no background processing infrastructure — the architecture is intentionally minimal and fully hosted.</p>
+</main>
+</body>
+</html>

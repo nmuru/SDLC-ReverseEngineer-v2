@@ -20,7 +20,7 @@ from openai import AsyncOpenAI
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_SOURCE = PROJECT_ROOT / ".agents" / "agents"
-SKILLS_SOURCE = PROJECT_ROOT / ".opencode" / "skills"
+SKILLS_SOURCE = PROJECT_ROOT / ".agents" / "skills"
 
 
 class AgentRunnerError(RuntimeError):

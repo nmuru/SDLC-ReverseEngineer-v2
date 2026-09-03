@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>business-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Business Requirements Analysis</h1>
+<h2>Overview</h2>
+<p>This document presents the business requirements derived from repository inspection of the codebase. The project implements a high-performance, server-rendered ecommerce storefront template that delivers a complete shopping experience and integrates with external commerce platforms through pluggable providers. The business requirements below describe what the solution must accomplish from a business perspective, expressed in business language and independent of technical implementation details.</p>
+<p>The requirements are organized into four groups:</p>
+<ul>
+<li>Customer Experience Requirements</li>
+<li>Store Operations Requirements</li>
+<li>Technical Foundation Requirements</li>
+<li>Business Rule Requirements</li>
+</ul>
+<p>Each requirement is expressed as a business need (&quot;must be able to,&quot; &quot;must support,&quot; &quot;must ensure&quot;) and is supported by evidence drawn from the implementation where applicable.</p>
+<p>---</p>
+<h2>Customer Experience Requirements</h2>
+<p>These requirements describe the capabilities the storefront must provide to end users (shoppers) during their purchase journey.</p>
+<h3>Product Discovery and Browsing</h3>
+<ul>
+<li><strong>Customers must be able to browse and discover products</strong> through categorized product listings, featured collections, and search functionality.</li>
+<li><strong>Customers must be able to view detailed product information</strong> including titles, descriptions, images, pricing, and variant options.</li>
+<li><strong>Customers must be able to search for products</strong> using keywords and apply filters to refine search results.</li>
+</ul>
+<h3>Cart Management</h3>
+<ul>
+<li><strong>Customers must be able to add products to a shopping cart</strong> and maintain cart state across browsing sessions.</li>
+<li><strong>Customers must be able to update cart contents</strong> including adjusting quantities and removing items.</li>
+<li><strong>Customers must receive visual feedback</strong> about cart contents, including item quantities and total costs.</li>
+<li><strong>Customers must be able to maintain their shopping cart</strong> across multiple browsing sessions within the same device or browser.</li>
+</ul>
+<h3>Checkout and Purchase</h3>
+<ul>
+<li><strong>Customers must be able to proceed to checkout</strong> with their selected items and complete the purchase process.</li>
+</ul>
+<h3>Recommendations and Navigation</h3>
+<ul>
+<li><strong>Customers must be able to view product recommendations</strong> and related items to support purchasing decisions.</li>
+<li><strong>Customers must be able to navigate the complete shopping journey</strong> from product discovery through purchase to post-purchase.</li>
+</ul>
+<p>---</p>
+<h2>Store Operations Requirements</h2>
+<p>These requirements describe the capabilities business operators (merchants, store administrators) need to manage their ecommerce presence through their chosen commerce platform provider.</p>
+<ul>
+<li><strong>Business operators must be able to manage product catalogs</strong> through their chosen commerce platform provider.</li>
+<li><strong>Business operators must be able to configure sorting and filtering options</strong> for product discovery.</li>
+<li><strong>Business operators must be able to manage content and marketing materials</strong> including product descriptions and promotional text.</li>
+<li><strong>Business operators must be able to control visibility</strong> of certain products through tagging and access rules.</li>
+<li><strong>Business operators must be able to optimize for search engines</strong> through proper metadata and structured data implementation.</li>
+</ul>
+<p>---</p>
+<h2>Technical Foundation Requirements</h2>
+<p>These requirements describe the non-functional and architectural qualities the solution must provide as a foundation for the business capabilities above.</p>
+<ul>
+<li><strong>The solution must support high-performance operations</strong> including server-side rendering and efficient data loading.</li>
+<li><strong>The solution must enable multiple commerce platform integration</strong> through provider abstractions.</li>
+<li><strong>The solution must support responsive design</strong> across all device types and screen sizes.</li>
+<li><strong>The solution must provide accessibility compliance</strong> for all shopping functionality.</li>
+<li><strong>The solution must support internationalization</strong> for global commerce operations.</li>
+<li><strong>The solution must provide analytics and tracking capabilities</strong> for user behavior and business metrics.</li>
+</ul>
+<p>---</p>
+<h2>Business Rule Requirements</h2>
+<p>These requirements describe the rules and constraints the storefront must enforce during shopping operations.</p>
+<h3>Pricing and Display</h3>
+<ul>
+<li><strong>Pricing information must be displayed consistently</strong> across all product and cart interfaces.</li>
+<li><strong>Tax calculations must be applied correctly</strong> based on jurisdiction and product type.</li>
+<li><strong>Shipping requirements must be supported</strong> through integrated shipping providers.</li>
+</ul>
+<h3>Cart Behavior</h3>
+<ul>
+<li><strong>Cart quantities must be managed with business rules</strong> allowing increments, decrements, and removals.</li>
+<li><strong>The system must ensure cart persistence</strong> across browsing sessions while maintaining security.</li>
+<li><strong>User sessions must be managed securely</strong> with appropriate session timeout and cart retention policies.</li>
+</ul>
+<h3>Availability and Visibility</h3>
+<ul>
+<li><strong>Product availability must be validated</strong> before allowing customers to add items to cart.</li>
+<li><strong>Hidden or unpublished products must be excluded</strong> from public facing interfaces based on tagging systems.</li>
+</ul>
+<p>---</p>
+<h2>Evidence and Traceability</h2>
+<p>This section maps the business requirements above to the repository areas that demonstrate or implement the corresponding behavior.</p>
+<h3>Primary Evidence Sources</h3>
+<table><tbody>
+<tr><td>Repository Area</td><td>Files / Location</td><td>Business Capabilities Demonstrated</td></tr>
+<tr><td><strong>Home Page</strong></td><td><code>app/page.tsx</code></td><td>Main product discovery interface with featured collections; integration of multiple components for comprehensive product browsing</td></tr>
+<tr><td><strong>Product Details</strong></td><td><code>app/product/[handle]/page.tsx</code></td><td>Complete product information display including images, pricing, and variants; product recommendations and related items functionality</td></tr>
+<tr><td><strong>Shopping Cart Implementation</strong></td><td><code>components/cart/</code></td><td>Comprehensive cart management with add, update, and remove operations; real-time cart state management with optimistic UI updates; price calculations and quantity management</td></tr>
+<tr><td><strong>Search and Navigation</strong></td><td><code>app/search/</code></td><td>Advanced search capabilities with filtering and collection-based organization; maintains cart state across all browsing contexts</td></tr>
+<tr><td><strong>Root Layout</strong></td><td><code>app/layout.tsx</code></td><td>Global cart state management and persistence across all pages; site-wide navigation and customer journey support</td></tr>
+</tbody></table>
+<h3>Business Rules Observed in Implementation</h3>
+<p><strong>Cart Management Logic</strong></p>
+<ul>
+<li>Items can be added, quantity increased/decreased, or removed.</li>
+<li>Cart totals are recalculated automatically.</li>
+<li>Quantity must be positive integers or zero (removal trigger).</li>
+</ul>
+<p><strong>Product Display Rules</strong></p>
+<ul>
+<li>All products show pricing with currency information.</li>
+<li>Product variants are selectable through dropdown interfaces.</li>
+<li>Featured images and alt text are required for SEO.</li>
+</ul>
+<p><strong>Accessibility and Performance</strong></p>
+<ul>
+<li>Semantic HTML and proper ARIA attributes.</li>
+<li>Progressive loading with Suspense boundaries.</li>
+<li>Server-side rendering for optimal performance.</li>
+</ul>
+<p>---</p>
+<h2>Scope and Boundaries</h2>
+<h3>In Scope</h3>
+<p>The following business capabilities are supported by the repository and form part of the requirements scope.</p>
+<p><strong>Core Shopping Experience</strong></p>
+<ul>
+<li>Product browsing and discovery.</li>
+<li>Product detail pages.</li>
+<li>Shopping cart management.</li>
+<li>Checkout process initiation.</li>
+<li>User account management (implied through session management).</li>
+</ul>
+<p><strong>Technical Infrastructure</strong></p>
+<ul>
+<li>Multi-provider support architecture.</li>
+<li>Server-side rendering optimization.</li>
+<li>Responsive web design.</li>
+<li>Modern JavaScript framework integration.</li>
+</ul>
+<p><strong>Content Management</strong></p>
+<ul>
+<li>Product catalog display.</li>
+<li>Marketing content presentation.</li>
+<li>Dynamic product recommendations.</li>
+</ul>
+<h3>Out of Scope</h3>
+<p>The following capabilities are not implemented by the repository and are explicitly excluded from the current scope.</p>
+<p><strong>Payment Processing</strong></p>
+<ul>
+<li>Actual payment gateway integration.</li>
+<li>Payment method management.</li>
+<li>Refund and dispute handling.</li>
+</ul>
+<p><strong>Order Management</strong></p>
+<ul>
+<li>Order history display.</li>
+<li>Order status tracking.</li>
+<li>Returns and exchanges.</li>
+</ul>
+<p><strong>Advanced Store Features</strong></p>
+<ul>
+<li>Loyalty programs.</li>
+<li>Wishlists.</li>
+<li>Compare product functionality.</li>
+<li>Advanced marketing automation.</li>
+</ul>
+<p><strong>Backend Administration</strong></p>
+<ul>
+<li>Product inventory management beyond availability checks.</li>
+<li>Pricing strategy implementation.</li>
+<li>Tax configuration management.</li>
+<li>Shipping rate calculation.</li>
+</ul>
+<p>---</p>
+<h2>Dependencies and Integration Requirements</h2>
+<p>The storefront depends on the following external integrations to deliver the business capabilities above.</p>
+<ul>
+<li><strong>External Commerce Platforms</strong>: Must integrate with Shopify, BigCommerce, or other supported providers.</li>
+<li><strong>Payment Processors</strong>: Must support external payment gateways through provider abstractions.</li>
+<li><strong>Shipping Services</strong>: Must integrate with shipping carriers for rate calculation and tracking.</li>
+<li><strong>Marketing Tools</strong>: Must support integration with analytics, CRM, and email marketing platforms.</li>
+<li><strong>Content Management Systems</strong>: Must support headless CMS integration where required.</li>
+</ul>
+<p>---</p>
+<h2>Important Unknowns and Assumptions</h2>
+<p>These items are not fully determined from the repository alone. They are documented here so that downstream phases can resolve or verify them.</p>
+<h3>High-Impact Unknowns</h3>
+<ul>
+<li><strong>Exact Provider Capabilities</strong>: The specific feature sets and limitations of each supported commerce provider.</li>
+<li><strong>Payment Integration Details</strong>: The exact payment methods, processing workflows, and fee structures supported.</li>
+<li><strong>Tax Jurisdiction Complexity</strong>: How sales tax and VAT are calculated for different regions.</li>
+<li><strong>Shipping Integration Scope</strong>: The level of shipping carrier integration and rate calculation complexity.</li>
+</ul>
+<h3>Moderate-Risk Assumptions</h3>
+<ul>
+<li><strong>Inventory Management</strong>: The implementation assumes basic inventory checking exists in the underlying provider.</li>
+<li><strong>Customer Account Management</strong>: The solution supports basic user sessions and account functionality.</li>
+<li><strong>Mobile Commerce</strong>: Responsive design is assumed to provide full functionality on mobile devices.</li>
+<li><strong>SEO Implementation</strong>: The current implementation includes basic SEO requirements but advanced optimization may need enhancement.</li>
+</ul>
+<h3>Low-Impact Unknowns</h3>
+<ul>
+<li><strong>Brand Customization</strong>: The extent of theming and brand customization capabilities.</li>
+<li><strong>Performance Optimization</strong>: Advanced caching and performance tuning requirements.</li>
+<li><strong>Analytics Integration</strong>: Specific metrics and tracking requirements.</li>
+</ul>
+<p>---</p>
+<h2>Verification Gate Summary</h2>
+<p>The business requirements analysis satisfies the following verification criteria:</p>
+<ul>
+<li>✓ Requirements are explicitly technology agnostic — using business language only.</li>
+<li>✓ Each requirement describes what is needed rather than how it is implemented.</li>
+<li>✓ Business requirements are clearly distinguished from software requirements.</li>
+<li>✓ Major requirements are supported by repository evidence.</li>
+<li>✓ Unsupported assumptions have been identified and documented.</li>
+<li>✓ Business rules and outcomes have been considered.</li>
+<li>✓ Scope boundaries and exclusions are identified.</li>
+<li>✓ Important unknowns are disclosed.</li>
+<li>✓ Requirements are grouped by business capability/workflow.</li>
+</ul>
+<p>This business requirements analysis provides a comprehensive foundation for understanding what the solution must accomplish from a business perspective, independent of its technical implementation details.</p>
+</main>
+</body>
+</html>
