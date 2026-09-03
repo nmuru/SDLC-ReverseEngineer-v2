@@ -130,8 +130,6 @@ const phaseResultMap: Record<Phase["id"], keyof AnalysisResult> = {
 
 const API_BASE_URL = "http://localhost:8000";
 
-   
-
 const DEMO_REPO_URL = "https://github.com/vercel/commerce";
 const DEMO_RUN_ID = "vercel-demo";
 const DEMO_PHASE_IDS = phases.map((phase) => phase.id);
@@ -170,15 +168,13 @@ const providers: Provider[] = [
   },
 ];
 
-export default function Home() { 
- 
+export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
   const [provider, setProvider] = useState("openrouter");
   const [model, setModel] = useState("openrouter/free");
   const [apiKey, setApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
-  const [analysisResult, setAnalysisResult] =
-    useState<AnalysisResult | null>(null);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [analysisStarted, setAnalysisStarted] = useState(false);
   const [analysisComplete, setAnalysisComplete] = useState(false);
   const [runId, setRunId] = useState<string | null>(null);
@@ -201,9 +197,7 @@ export default function Home() {
             const response = await fetch(`/vercel-demo/${phase.id}.md`);
 
             if (!response.ok) {
-              throw new Error(
-                `Unable to load demo document: ${phase.id}.md (${response.status})`,
-              );
+              throw new Error(`Unable to load demo document: ${phase.id}.md (${response.status})`);
             }
 
             return [phase.id, await response.text()] as const;
@@ -238,11 +232,7 @@ export default function Home() {
         if (cancelled) return;
 
         console.error("Unable to load Vercel Commerce demo:", err);
-        setError(
-          err instanceof Error
-            ? err.message
-            : "Unable to load the Vercel Commerce demo documentation.",
-        );
+        setError(err instanceof Error ? err.message : "Unable to load the Vercel Commerce demo documentation.");
       }
     }
 
@@ -255,9 +245,7 @@ export default function Home() {
 
   function viewDemo() {
     if (!analysisResult) {
-      setError(
-        "The Vercel Commerce example is still loading. Please try again in a moment.",
-      );
+      setError("The Vercel Commerce example is still loading. Please try again in a moment.");
       return;
     }
 
@@ -276,13 +264,15 @@ export default function Home() {
   async function analyze(event: FormEvent) {
     event.preventDefault();
 
+    const phasesToRun = selectedPhases.filter((phaseId) => !completedPhases.includes(phaseId));
+
     if (!provider || !model.trim() || !apiKey.trim()) {
       setError("Enter an AI provider, model, and API key before starting.");
       return;
     }
 
-    if (selectedPhases.length === 0) {
-      setError("Select at least one SDLC phase before starting the analysis.");
+    if (phasesToRun.length === 0) {
+      setError("Select at least one new SDLC phase before starting the analysis.");
       return;
     }
 
@@ -308,7 +298,7 @@ export default function Home() {
         },
         body: JSON.stringify({
           repo_url: repoUrl,
-          selected_phases: selectedPhases,
+          selected_phases: phasesToRun,
           work_id: runId || null,
           provider,
           model,
@@ -379,26 +369,20 @@ export default function Home() {
                 ? previous
                 : [...previous, `${event.phase_name} phase completed`],
             );
-            const resultKey = phaseResultMap[
-              event.phase as Phase["id"]
-            ];
+            const resultKey = phaseResultMap[event.phase as Phase["id"]];
 
             if (resultKey) {
               setAnalysisResult((previous) => ({
                 repo_url: repoUrl,
                 business_purpose: previous?.business_purpose ?? "",
-                business_requirements:
-                  previous?.business_requirements ?? "",
+                business_requirements: previous?.business_requirements ?? "",
                 features: previous?.features ?? "",
-                software_requirements:
-                  previous?.software_requirements ?? "",
-                technology_architecture:
-                  previous?.technology_architecture ?? "",
+                software_requirements: previous?.software_requirements ?? "",
+                technology_architecture: previous?.technology_architecture ?? "",
                 design_pattern: previous?.design_pattern ?? "",
                 high_level_design: previous?.high_level_design ?? "",
                 low_level_design: previous?.low_level_design ?? "",
-                implementation_detail:
-                  previous?.implementation_detail ?? "",
+                implementation_detail: previous?.implementation_detail ?? "",
                 testing_harness: previous?.testing_harness ?? "",
                 future_directions: previous?.future_directions ?? "",
                 [resultKey]: event.raw_analysis,
@@ -410,6 +394,7 @@ export default function Home() {
                   : [...previous, event.phase],
               );
 
+              setSelectedPhases((previous) => previous.filter((id) => id !== event.phase));
               setActivePhase(event.phase);
             }
           } else if (event.type === "analysis_completed") {
@@ -426,8 +411,7 @@ export default function Home() {
     } catch (err) {
       console.error("Analysis request failed:", err);
 
-      const message =
-        err instanceof Error ? err.message : "Analysis failed.";
+      const message = err instanceof Error ? err.message : "Analysis failed.";
 
       setError(message);
       setAnalysisComplete(false);
@@ -454,24 +438,16 @@ export default function Home() {
     setLoading(false);
   }
 
-  const activePhaseDefinition =
-    phases.find((phase) => phase.id === activePhase) ?? phases[0];
-
+  const activePhaseDefinition = phases.find((phase) => phase.id === activePhase) ?? phases[0];
   const activeResultKey = phaseResultMap[activePhaseDefinition.id];
-
-  const activeResult =
-    analysisResult && activeResultKey
-      ? analysisResult[activeResultKey]
-      : "";
+  const activeResult = analysisResult && activeResultKey ? analysisResult[activeResultKey] : "";
 
   return (
     <div className="app-shell">
       <header className="topbar">
         <div>
           <div className="brand">ReverseEngineer-SDLC</div>
-          <div className="tagline">
-            Repository → Software Engineering Dossier
-          </div>
+          <div className="tagline">Repository → Software Engineering Dossier</div>
         </div>
 
         {analysisStarted && repoUrl && (
@@ -484,33 +460,24 @@ export default function Home() {
       {!analysisStarted ? (
         <main className="landing">
           <div className="landing-card">
-            <div className="eyebrow">
-              AI SOFTWARE REVERSE ENGINEERING
-            </div>
+            <div className="eyebrow">AI SOFTWARE REVERSE ENGINEERING</div>
 
-            <h1>
-              Turn a GitHub repository into an SDLC dossier.
-            </h1>
+            <h1>Turn a GitHub repository into an SDLC dossier.</h1>
 
             <p className="landing-copy">
-                Submit a repository URL to progressively reconstruct its business purpose,
-                business requirements, features, software requirements, architecture,
-                design, implementation, testing strategy, and future directions. If you
-                are enhancing an application through a spec-driven development approach,
-                you can use this app to reverse engineer the existing codebase and build
-                specifications that support further development.
+              Submit a repository URL to progressively reconstruct its business purpose,
+              business requirements, features, software requirements, architecture,
+              design, implementation, testing strategy, and future directions. If you
+              are enhancing an application through a spec-driven development approach,
+              you can use this app to reverse engineer the existing codebase and build
+              specifications that support further development.
             </p>
-            <fieldset
-              className="phase-selection"
-              style={{ marginTop: 28 }}
-            >
+            <fieldset className="phase-selection" style={{ marginTop: 28 }}>
               <legend>AI model</legend>
 
               <div style={{ display: "grid", gap: 14 }}>
                 <label style={{ display: "grid", gap: 7 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>
-                    Provider
-                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>Provider</span>
                   <select
                     value={provider}
                     onChange={(event) => setProvider(event.target.value)}
@@ -527,24 +494,17 @@ export default function Home() {
                     }}
                   >
                     {providers.map((item) => (
-                      <option key={item.id} value={item.id}>
-                        {item.label}
-                      </option>
+                      <option key={item.id} value={item.id}>{item.label}</option>
                     ))}
                   </select>
                 </label>
 
                 <label style={{ display: "grid", gap: 7 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>
-                    Model
-                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>Model</span>
                   <input
                     value={model}
                     onChange={(event) => setModel(event.target.value)}
-                    placeholder={
-                      providers.find((item) => item.id === provider)
-                        ?.placeholder ?? "Enter the model name"
-                    }
+                    placeholder={providers.find((item) => item.id === provider)?.placeholder ?? "Enter the model name"}
                     disabled={loading}
                     required
                     aria-label="AI model"
@@ -562,9 +522,7 @@ export default function Home() {
                 </label>
 
                 <label style={{ display: "grid", gap: 7 }}>
-                  <span style={{ fontSize: 13, fontWeight: 700 }}>
-                    API key
-                  </span>
+                  <span style={{ fontSize: 13, fontWeight: 700 }}>API key</span>
                   <div style={{ display: "flex", gap: 8 }}>
                     <input
                       value={apiKey}
@@ -605,16 +563,8 @@ export default function Home() {
                   </div>
                 </label>
 
-                <p
-                  style={{
-                    margin: 0,
-                    color: "var(--muted)",
-                    fontSize: 12,
-                    lineHeight: 1.5,
-                  }}
-                >
-                  Your API key is used for this analysis request and is not
-                  saved by this frontend.
+                <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
+                  Your API key is used for this analysis request and is not saved by this frontend.
                 </p>
               </div>
             </fieldset>
@@ -678,27 +628,16 @@ export default function Home() {
               View Vercel Commerce example
             </button>
 
-            <p
-              style={{
-                margin: "0 0 16px",
-                color: "var(--muted)",
-                fontSize: 13,
-                lineHeight: 1.55,
-              }}
-            >
-              You can explore a completed eleven-phase example before analyzing your own repository. 
-              The Vercel Commerce analysis made approximately 230 AI requests and consumed 7.31 million tokens. 
-              When run using the openrouter/free model, the recorded cost was approximately $0.03. 
-              Actual usage and cost for another repository will vary with repository size, selected phases, 
-              model, provider, and applicable free-tier limits.
+            <p style={{ margin: "0 0 16px", color: "var(--muted)", fontSize: 13, lineHeight: 1.55 }}>
+              You can explore a completed eleven-phase example before analyzing your own
+              repository. The Vercel Commerce analysis made approximately 230 AI requests
+              and consumed 7.31 million tokens. When run using the openrouter/free model,
+              the recorded cost was approximately $0.03. Actual usage and cost for another
+              repository will vary with repository size, selected phases, model, provider,
+              and applicable free-tier limits.
             </p>
 
-
-
-            <div className="landing-note">
-              Analysis is performed by the backend coding-agent pipeline.
-            </div>
-
+            <div className="landing-note">Analysis is performed by the backend coding-agent pipeline.</div>
           </div>
         </main>
       ) : (
@@ -708,13 +647,11 @@ export default function Home() {
 
             <div className="progress-label">
               {loading
-                ? `${completedPhases.length} of ${selectedPhases.length} phases completed`
+                ? `${completedPhases.length} of ${selectedPhases.length + completedPhases.length} phases completed`
                 : analysisComplete
                   ? "Analysis complete"
                   : error
-                    ? `${completedPhases.length} phase${
-                        completedPhases.length === 1 ? "" : "s"
-                      } completed before failure`
+                    ? `${completedPhases.length} phase${completedPhases.length === 1 ? "" : "s"} completed before failure`
                     : "Analysis failed"}
             </div>
 
@@ -734,9 +671,7 @@ export default function Home() {
                 return (
                   <button
                     key={phase.id}
-                    className={`phase-tab ${
-                      activePhase === phase.id ? "active" : ""
-                    } ${!available ? "locked" : ""}`}
+                    className={`phase-tab ${activePhase === phase.id ? "active" : ""} ${!available ? "locked" : ""}`}
                     onClick={() => {
                       if (available) {
                         setSelectionView(null);
@@ -745,32 +680,15 @@ export default function Home() {
                     }}
                     disabled={!available}
                   >
-                    <span className="phase-number">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-
-                    <span className="phase-name">
-                      {phase.label}
-                    </span>
-
-                    <span
-                      className={`phase-status ${
-                        complete ? "done" : ""
-                      }`}
-                    >
-                      {complete ? "✓" : "•"}
-                    </span>
+                    <span className="phase-number">{String(index + 1).padStart(2, "0")}</span>
+                    <span className="phase-name">{phase.label}</span>
+                    <span className={`phase-status ${complete ? "done" : ""}`}>{complete ? "✓" : "•"}</span>
                   </button>
                 );
               })}
             </nav>
 
-            <button
-              className="new-analysis"
-              onClick={resetAnalysis}
-            >
-              + New repository
-            </button>
+            <button className="new-analysis" onClick={resetAnalysis}>+ New repository</button>
           </aside>
 
           <main className="content">
@@ -784,78 +702,31 @@ export default function Home() {
                   <div style={{ display: "grid", gap: 14 }}>
                     <label style={{ display: "grid", gap: 7 }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>Provider</span>
-                      <select
-                        value={provider}
-                        onChange={(event) => setProvider(event.target.value)}
-                        disabled={loading}
-                        aria-label="AI provider"
-                        style={{ width: "100%", padding: "12px 13px", border: "1px solid #cfd4da", borderRadius: 9, outline: "none", color: "var(--text)", background: "white" }}
-                      >
-                        {providers.map((item) => (
-                          <option key={item.id} value={item.id}>{item.label}</option>
-                        ))}
+                      <select value={provider} onChange={(event) => setProvider(event.target.value)} disabled={loading} aria-label="AI provider" style={{ width: "100%", padding: "12px 13px", border: "1px solid #cfd4da", borderRadius: 9, outline: "none", color: "var(--text)", background: "white" }}>
+                        {providers.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
                       </select>
                     </label>
 
                     <label style={{ display: "grid", gap: 7 }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>Model</span>
-                      <input
-                        value={model}
-                        onChange={(event) => setModel(event.target.value)}
-                        placeholder={providers.find((item) => item.id === provider)?.placeholder ?? "Enter the model name"}
-                        disabled={loading}
-                        required
-                        aria-label="AI model"
-                        autoComplete="off"
-                        style={{ width: "100%", padding: "12px 13px", border: "1px solid #cfd4da", borderRadius: 9, outline: "none", color: "var(--text)", background: "white" }}
-                      />
+                      <input value={model} onChange={(event) => setModel(event.target.value)} placeholder={providers.find((item) => item.id === provider)?.placeholder ?? "Enter the model name"} disabled={loading} required aria-label="AI model" autoComplete="off" style={{ width: "100%", padding: "12px 13px", border: "1px solid #cfd4da", borderRadius: 9, outline: "none", color: "var(--text)", background: "white" }} />
                     </label>
 
                     <label style={{ display: "grid", gap: 7 }}>
                       <span style={{ fontSize: 13, fontWeight: 700 }}>API key</span>
                       <div style={{ display: "flex", gap: 8 }}>
-                        <input
-                          value={apiKey}
-                          onChange={(event) => setApiKey(event.target.value)}
-                          type={showApiKey ? "text" : "password"}
-                          placeholder="Enter your API key"
-                          disabled={loading}
-                          required
-                          aria-label="AI provider API key"
-                          autoComplete="off"
-                          style={{ minWidth: 0, flex: 1, padding: "12px 13px", border: "1px solid #cfd4da", borderRadius: 9, outline: "none", color: "var(--text)", background: "white" }}
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setShowApiKey((value) => !value)}
-                          disabled={loading}
-                          aria-label={showApiKey ? "Hide API key" : "Show API key"}
-                          style={{ padding: "0 13px", border: "1px solid var(--border)", borderRadius: 9, background: "white", color: "var(--text)", fontWeight: 700 }}
-                        >
-                          {showApiKey ? "Hide" : "Show"}
-                        </button>
+                        <input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type={showApiKey ? "text" : "password"} placeholder="Enter your API key" disabled={loading} required aria-label="AI provider API key" autoComplete="off" style={{ minWidth: 0, flex: 1, padding: "12px 13px", border: "1px solid #cfd4da", borderRadius: 9, outline: "none", color: "var(--text)", background: "white" }} />
+                        <button type="button" onClick={() => setShowApiKey((value) => !value)} disabled={loading} aria-label={showApiKey ? "Hide API key" : "Show API key"} style={{ padding: "0 13px", border: "1px solid var(--border)", borderRadius: 9, background: "white", color: "var(--text)", fontWeight: 700 }}>{showApiKey ? "Hide" : "Show"}</button>
                       </div>
                     </label>
 
-                    <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>
-                      Your API key is used for this analysis request and is not saved by this frontend.
-                    </p>
+                    <p style={{ margin: 0, color: "var(--muted)", fontSize: 12, lineHeight: 1.5 }}>Your API key is used for this analysis request and is not saved by this frontend.</p>
                   </div>
                 </fieldset>
 
                 <form onSubmit={analyze} className="repo-form">
-                  <input
-                    value={repoUrl}
-                    onChange={(event) => setRepoUrl(event.target.value)}
-                    placeholder="https://github.com/owner/repository"
-                    type="url"
-                    required
-                    aria-label="GitHub repository URL"
-                    disabled={loading}
-                  />
-                  <button type="submit" disabled={loading}>
-                    {loading ? "Reverse engineering..." : "Reverse engineer"}
-                  </button>
+                  <input value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} placeholder="https://github.com/owner/repository" type="url" required aria-label="GitHub repository URL" disabled={loading} />
+                  <button type="submit" disabled={loading}>{loading ? "Reverse engineering..." : "Reverse engineer"}</button>
                 </form>
 
                 <fieldset className="phase-selection">
@@ -869,13 +740,7 @@ export default function Home() {
                             type="checkbox"
                             checked={selectedPhases.includes(phase.id)}
                             disabled={complete || loading}
-                            onChange={() =>
-                              setSelectedPhases((previous) =>
-                                previous.includes(phase.id)
-                                  ? previous.filter((id) => id !== phase.id)
-                                  : [...previous, phase.id],
-                              )
-                            }
+                            onChange={() => setSelectedPhases((previous) => previous.includes(phase.id) ? previous.filter((id) => id !== phase.id) : [...previous, phase.id])}
                           />
                           <span>{phase.label}{complete ? " (completed)" : ""}</span>
                         </label>
@@ -884,38 +749,17 @@ export default function Home() {
                   </div>
                 </fieldset>
 
-                <div className="landing-note">
-                  Analysis is performed by the backend coding-agent pipeline.
-                </div>
+                <div className="landing-note">Analysis is performed by the backend coding-agent pipeline.</div>
               </section>
-                        ) : error ? (
+            ) : error ? (
               <>
                 {analysisResult && completedPhases.length > 0 && activeResult ? (
                   <section className="dossier-content">
-                    <div className="eyebrow">
-                      PARTIAL ANALYSIS
-                    </div>
-
+                    <div className="eyebrow">PARTIAL ANALYSIS</div>
                     <h2>{activePhaseDefinition.label}</h2>
-
-                    <p className="section-intro">
-                      {completedPhases.length} of {phases.length} phases
-                      completed. The analysis stopped because the
-                      remaining work could not be completed.
-                    </p>
-
+                    <p className="section-intro">{completedPhases.length} of {phases.length} phases completed. The analysis stopped because the remaining work could not be completed.</p>
                     <article className="evidence-card markdown-content">
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ className, children, ...props }) {
-                            if (/language-mermaid/.test(className || "")) {
-                              return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />;
-                            }
-                            return <code className={className} {...props}>{children}</code>;
-                          },
-                        }}
-                      >
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code({ className, children, ...props }) { if (/language-mermaid/.test(className || "")) return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />; return <code className={className} {...props}>{children}</code>; } }}>
                         {activeResult}
                       </ReactMarkdown>
                     </article>
@@ -923,98 +767,36 @@ export default function Home() {
                 ) : (
                   <section className="progress-screen">
                     <div>
-                      <div className="eyebrow">
-                        ANALYSIS FAILED
-                      </div>
-
-                      <h1>
-                        The repository could not be fully analyzed.
-                      </h1>
-
+                      <div className="eyebrow">ANALYSIS FAILED</div>
+                      <h1>The repository could not be fully analyzed.</h1>
                       <p>{error}</p>
                     </div>
                   </section>
                 )}
 
-                {completedPhases.length > 0 && (
-                  <div className="section-intro">
-                    {error}
-                  </div>
-                )}
+                {completedPhases.length > 0 && <div className="section-intro">{error}</div>}
               </>
             ) : isDemo ? (
               <>
                 <section className="completion-banner">
                   <div>
-                    <div className="eyebrow">
-                      EXAMPLE DOCUMENTATION
-                    </div>
-
-                    <h1>
-                      Vercel Commerce software dossier
-                    </h1>
-
-                    <p>
-                      Browse the pre-generated eleven-phase reverse-engineering
-                      documentation. Use “+ New repository” to analyze your own
-                      GitHub repository.
-                    </p>
+                    <div className="eyebrow">EXAMPLE DOCUMENTATION</div>
+                    <h1>Vercel Commerce software dossier</h1>
+                    <p>Browse the pre-generated eleven-phase reverse-engineering documentation. Use “+ New repository” to analyze your own GitHub repository.</p>
                   </div>
-
-                  <div className="completion-mark">
-                    ✓
-                  </div>
+                  <div className="completion-mark">✓</div>
                 </section>
 
                 <section className="dossier-content">
-                  <div className="eyebrow">
-                    STAGE{" "}
-                    {String(
-                      phases.findIndex(
-                        (phase) =>
-                          phase.id === activePhase,
-                      ) + 1,
-                    ).padStart(2, "0")}
-                  </div>
-
-                  <h2>
-                    {activePhaseDefinition.label}
-                  </h2>
-
-                  <p className="section-intro">
-                    Pre-generated reverse-engineering documentation for the
-                    Vercel Commerce repository.
-                  </p>
-
+                  <div className="eyebrow">STAGE {String(phases.findIndex((phase) => phase.id === activePhase) + 1).padStart(2, "0")}</div>
+                  <h2>{activePhaseDefinition.label}</h2>
+                  <p className="section-intro">Pre-generated reverse-engineering documentation for the Vercel Commerce repository.</p>
                   <article className="evidence-card markdown-content">
                     {activeResult ? (
-                      <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ className, children, ...props }) {
-                            if (/language-mermaid/.test(className || "")) {
-                              return (
-                                <MermaidDiagram
-                                  chart={String(children).replace(/\n$/, "")}
-                                />
-                              );
-                            }
-
-                            return (
-                              <code className={className} {...props}>
-                                {children}
-                              </code>
-                            );
-                          },
-                        }}
-                      >
+                      <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code({ className, children, ...props }) { if (/language-mermaid/.test(className || "")) return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />; return <code className={className} {...props}>{children}</code>; } }}>
                         {activeResult}
                       </ReactMarkdown>
-                    ) : (
-                      <div className="mermaid-loading">
-                        Loading Vercel Commerce documentation...
-                      </div>
-                    )}
+                    ) : <div className="mermaid-loading">Loading Vercel Commerce documentation...</div>}
                   </article>
                 </section>
               </>
@@ -1023,89 +805,32 @@ export default function Home() {
                 {analysisComplete ? (
                   <section className="completion-banner">
                     <div>
-                      <div className="eyebrow">
-                        REVERSE ENGINEERING COMPLETE
-                      </div>
-
-                      <h1>
-                        Your software dossier is ready.
-                      </h1>
-
-                      <p>
-                        Visit the individual SDLC tabs on the left
-                        to explore the reconstructed system.
-                      </p>
+                      <div className="eyebrow">REVERSE ENGINEERING COMPLETE</div>
+                      <h1>Your software dossier is ready.</h1>
+                      <p>Visit the individual SDLC tabs on the left to explore the reconstructed system.</p>
                     </div>
-
-                    <div className="completion-mark">
-                      ✓
-                    </div>
-
+                    <div className="completion-mark">✓</div>
                     {runId && analysisComplete && !isDemo && (
-                      <a
-                        className="download-button"
-                        href={`${API_BASE_URL}/api/analysis/${runId}/download`}
-                        download="sdlc-documentation.zip"
-                        aria-label="Download SDLC documentation ZIP"
-                      >
-                        Download ZIP
-                      </a>
+                      <a className="download-button" href={`${API_BASE_URL}/api/analysis/${runId}/download`} download="sdlc-documentation.zip" aria-label="Download SDLC documentation ZIP">Download ZIP</a>
                     )}
                   </section>
                 ) : (
                   <section className="progress-screen">
                     <div className="spinner" />
-
                     <div>
-                      <div className="eyebrow">
-                        ANALYSIS IN PROGRESS
-                      </div>
-
-                      <h1>
-                        Results are arriving progressively
-                      </h1>
-
-                      <p>
-                        {completedPhases.length} of {phases.length} phases
-                        have completed. You can read completed phases
-                        while the remaining phases continue running.
-                      </p>
+                      <div className="eyebrow">ANALYSIS IN PROGRESS</div>
+                      <h1>Results are arriving progressively</h1>
+                      <p>{completedPhases.length} of {phases.length} phases have completed. You can read completed phases while the remaining phases continue running.</p>
                     </div>
                   </section>
                 )}
 
                 <section className="dossier-content">
-                  <div className="eyebrow">
-                    STAGE{" "}
-                    {String(
-                      phases.findIndex(
-                        (phase) =>
-                          phase.id === activePhase,
-                      ) + 1,
-                    ).padStart(2, "0")}
-                  </div>
-
-                  <h2>
-                    {activePhaseDefinition.label}
-                  </h2>
-
-                  <p className="section-intro">
-                    Analysis returned by the backend coding-agent
-                    pipeline for this SDLC phase.
-                  </p>
-
+                  <div className="eyebrow">STAGE {String(phases.findIndex((phase) => phase.id === activePhase) + 1).padStart(2, "0")}</div>
+                  <h2>{activePhaseDefinition.label}</h2>
+                  <p className="section-intro">Analysis returned by the backend coding-agent pipeline for this SDLC phase.</p>
                   <article className="evidence-card markdown-content">
-                    <ReactMarkdown
-                        remarkPlugins={[remarkGfm]}
-                        components={{
-                          code({ className, children, ...props }) {
-                            if (/language-mermaid/.test(className || "")) {
-                              return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />;
-                            }
-                            return <code className={className} {...props}>{children}</code>;
-                          },
-                        }}
-                      >
+                    <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code({ className, children, ...props }) { if (/language-mermaid/.test(className || "")) return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />; return <code className={className} {...props}>{children}</code>; } }}>
                       {activeResult}
                     </ReactMarkdown>
                   </article>
@@ -1114,29 +839,11 @@ export default function Home() {
             ) : loading ? (
               <section className="progress-screen">
                 <div className="spinner" />
-
                 <div>
-                  <div className="eyebrow">
-                    ANALYSIS IN PROGRESS
-                  </div>
-
-                  <h1>
-                    Reverse engineering the repository
-                  </h1>
-
-                  <p>
-                    The backend coding agent is analyzing the
-                    repository. Completed phases will appear here
-                    as soon as they are ready.
-                  </p>
-
-                  {completionMessages.length > 0 && (
-                    <div className="completion-messages" aria-live="polite">
-                      {completionMessages.map((message) => (
-                        <div key={message}>{message}</div>
-                      ))}
-                    </div>
-                  )}
+                  <div className="eyebrow">ANALYSIS IN PROGRESS</div>
+                  <h1>Reverse engineering the repository</h1>
+                  <p>The backend coding agent is analyzing the repository. Completed phases will appear here as soon as they are ready.</p>
+                  {completionMessages.length > 0 && <div className="completion-messages" aria-live="polite">{completionMessages.map((message) => <div key={message}>{message}</div>)}</div>}
                 </div>
               </section>
             ) : null}
