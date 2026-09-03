@@ -19,8 +19,8 @@ from openai import AsyncOpenAI
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
-OPENCODE_AGENTS_SOURCE = PROJECT_ROOT / ".opencode" / "agents"
-OPENCODE_SKILLS_SOURCE = PROJECT_ROOT / ".opencode" / "skills"
+AGENTS_SOURCE = PROJECT_ROOT / ".agents" / "agents"
+SKILLS_SOURCE = PROJECT_ROOT / ".opencode" / "skills"
 
 
 class AgentRunnerError(RuntimeError):
@@ -85,23 +85,19 @@ def repository_size_bytes(repository: Path) -> int:
 
 def _read_agent_definition(phase: str) -> str:
     """Load the phase-specific agent contract when present."""
-    if not OPENCODE_AGENTS_SOURCE.exists():
+    if not AGENTS_SOURCE.exists():
         return ""
-    candidates = [
-        OPENCODE_AGENTS_SOURCE / f"{phase}.agent.md",
-        OPENCODE_AGENTS_SOURCE / f"{phase}.md",
-    ]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate.read_text(encoding="utf-8", errors="replace")
+    candidate = AGENTS_SOURCE / f"{phase}.md"
+    if candidate.is_file():
+        return candidate.read_text(encoding="utf-8", errors="replace")
     return ""
 
 
 def _read_skill(phase: str) -> str:
     """Load the complete phase skill eagerly, as in the current implementation."""
-    if not OPENCODE_SKILLS_SOURCE.exists():
+    if not SKILLS_SOURCE.exists():
         return ""
-    candidates = [OPENCODE_SKILLS_SOURCE / phase / "SKILL.md", OPENCODE_SKILLS_SOURCE / f"{phase}.md"]
+    candidates = [SKILLS_SOURCE / phase / "SKILL.md", SKILLS_SOURCE / f"{phase}.md"]
     for candidate in candidates:
         if candidate.is_file():
             return candidate.read_text(encoding="utf-8", errors="replace")
