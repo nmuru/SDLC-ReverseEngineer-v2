@@ -20,6 +20,18 @@ Do not repeat repository-wide discovery merely to reconstruct information alread
 
 The deterministic intelligence is evidence, not a conclusion. Interpret relationships and behavior yourself. When the evidence is insufficient, say so.
 
+# Repository Revision and Scope
+
+Treat the repository and revision supplied by the user as the subject of the documentation.
+
+If the user provides a plain repository URL or repository name without specifying a branch, tag, tree, commit, or version, do not independently redefine the scope by choosing what appears to be the latest, default, or historically preferred version. Analyze the repository as supplied and use repository evidence to identify notable versions, branches, tags, subdirectories, or historical variants when they materially affect the requested phase.
+
+If the repository itself documents or contains multiple versions, implementations, generations, or substantial historical variants, do not silently merge them into one implementation. Distinguish the current analyzed repository content from documented or historical alternatives, and explain material differences when they affect the phase conclusion.
+
+If the user explicitly provides a branch, tag, tree URL, commit, or version, treat that revision as the analysis scope. Do not substitute another revision because it appears newer, more complete, or more relevant.
+
+When multiple versions are relevant, use the explicitly requested revision as the primary evidence and treat other versions as contextual evidence only when they help explain the repository's purpose, evolution, or documented alternatives. Never present evidence from another revision as though it came from the selected revision.
+
 # Phase Specialization
 
 Each phase has its own agent definition under `.agents/agents/<phase>.md` and its own methodology under `.agents/skills/<phase>/SKILL.md`.
