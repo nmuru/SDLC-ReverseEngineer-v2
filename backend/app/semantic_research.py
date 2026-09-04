@@ -188,28 +188,31 @@ def _response_diagnostics(response: Any) -> dict[str, Any]:
 
 async def _one_shot_chat(*, provider: str, model: str, api_key: str, system_prompt: str, user_prompt: str) -> str:
     client = AsyncOpenAI(base_url=_provider_base_url(provider), api_key=api_key.strip())
-    response = await client.chat.completions.create(
-        model=model.strip(),
-        messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
-        temperature=0.1,
-    )
-    content = _extract_message_content(response)
-    diagnostics = _response_diagnostics(response)
-    logger.info("SEMANTIC_RESEARCH response model=%s provider=%s diagnostics=%s", model, provider, diagnostics)
-    if content:
-        return content
-
-    reasoning = _extract_reasoning_fallback(response)
-    if reasoning:
-        logger.warning("SEMANTIC_RESEARCH model returned reasoning without answer; failing closed instead of treating reasoning as the research brief")
-        raise RuntimeError(
-            "Research LLM returned reasoning but no final answer. "
-            f"finish_reason={diagnostics.get('finish_reason')}; reasoning_chars={len(reasoning)}"
+    try:
+        response = await client.chat.completions.create(
+            model=model.strip(),
+            messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
+            temperature=0.1,
         )
-    raise RuntimeError(
-        "Research LLM returned an empty response. "
-        f"finish_reason={diagnostics.get('finish_reason')}; response_diagnostics={json.dumps(diagnostics, default=str)}"
-    )
+        content = _extract_message_content(response)
+        diagnostics = _response_diagnostics(response)
+        logger.info("SEMANTIC_RESEARCH response model=%s provider=%s diagnostics=%s", model, provider, diagnostics)
+        if content:
+            return content
+
+        reasoning = _extract_reasoning_fallback(response)
+        if reasoning:
+            logger.warning("SEMANTIC_RESEARCH model returned reasoning without answer; failing closed instead of treating reasoning as the research brief")
+            raise RuntimeError(
+                "Research LLM returned reasoning but no final answer. "
+                f"finish_reason={diagnostics.get('finish_reason')}; reasoning_chars={len(reasoning)}"
+            )
+        raise RuntimeError(
+            "Research LLM returned an empty response. "
+            f"finish_reason={diagnostics.get('finish_reason')}; response_diagnostics={json.dumps(diagnostics, default=str)}"
+        )
+    finally:
+        await client.close()
 
 
 def run_repository_research(*, intelligence: RepositoryIntelligence, provider: str, model: str, api_key: str) -> str:
