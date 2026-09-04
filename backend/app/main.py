@@ -104,12 +104,11 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
                     "repo_url": repo_url,
                     "run_id": results["run_id"],
                     "completed_phases": list(results["results"].keys()),
+                    "failed_phases": results.get("failures", []),
                 }
             )
 
         except AgentRunnerError as exc:
-            # AgentRunnerError messages are intentionally sanitized in the
-            # execution layer and are safe to return to the browser.
             event_queue.put(
                 {
                     "type": "analysis_failed",
@@ -119,7 +118,6 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             )
 
         except ValueError as exc:
-            # Validation errors are safe to return and contain no credentials.
             event_queue.put(
                 {
                     "type": "analysis_failed",
@@ -129,9 +127,6 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             )
 
         except Exception:
-            # Log the traceback on the server for diagnosis, but never include
-            # the request object or API key explicitly in the log message and
-            # never return raw exception text to the browser.
             logger.exception(
                 "Unexpected analysis failure: repo_url=%s",
                 repo_url,
@@ -157,14 +152,9 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
         while True:
             event = await asyncio.to_thread(event_queue.get)
 
-            yield (
-                f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
-            )
+            yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
 
-            if event["type"] in {
-                "analysis_completed",
-                "analysis_failed",
-            }:
+            if event["type"] in {"analysis_completed", "analysis_failed"}:
                 break
 
     return StreamingResponse(

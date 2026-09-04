@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>future-directions</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Future Directions Analysis: Next.js Commerce</h1>
+<h2>Executive Synthesis</h2>
+<p>This repository is a <strong>Vercel-maintained Shopify headless storefront</strong> built with Next.js 15 App Router, React 19, and TypeScript. The system serves as a high-performance, server-rendered e-commerce template designed for deployment on Vercel.</p>
+<h3>Critical Current Limitations</h3>
+<table><tbody>
+<tr><td>Area</td><td>Finding</td><td>Impact</td></tr>
+<tr><td><strong>Testing</strong></td><td>No test suite exists; only <code>prettier:check</code> runs via <code>pnpm test</code></td><td>No regression protection, no verification of cart operations, GraphQL queries, or page rendering</td></tr>
+<tr><td><strong>CI/CD</strong></td><td>No GitHub Actions or deployment automation configured</td><td>Manual deployments, no automated quality gates</td></tr>
+<tr><td><strong>Provider Coupling</strong></td><td>Shopify integration is deeply embedded in all components</td><td>Difficult to swap providers despite README stating this is an intent</td></tr>
+<tr><td><strong>Dependency Stability</strong></td><td>Uses Next.js canary (<code>15.6.0-canary.60</code>) and React 19</td><td>Potential for breaking changes; not production-stable versions</td></tr>
+<tr><td><strong>Observability</strong></td><td>No logging, error tracking, or health endpoints</td><td>Limited operational visibility in production</td></tr>
+<tr><td><strong>Configuration</strong></td><td>No <code>.env.example</code> detected despite README referencing it</td><td>Unclear setup requirements for new developers</td></tr>
+</tbody></table>
+<h3>Evidence-Backed Priority Model</h3>
+<table><tbody>
+<tr><td>Priority</td><td>Rationale</td></tr>
+<tr><td><strong>High</strong></td><td>Material limitations blocking production reliability or contradicting stated architectural intent</td></tr>
+<tr><td><strong>Medium</strong></td><td>Meaningful improvements to reliability, maintainability, or extensibility that are not immediately blocking</td></tr>
+<tr><td><strong>Longer-term</strong></td><td>Strategic evolution dependent on scale or product scope increases</td></tr>
+</tbody></table>
+<h2>1. Testing Infrastructure</h2>
+<h3>Current State</h3>
+<ul>
+<li><code>package.json</code> defines <code>&quot;test&quot;: &quot;pnpm prettier:check&quot;</code> — no actual tests</li>
+<li>No test framework installed (<code>@testing-library/react</code>, <code>vitest</code>, <code>jest</code> absent)</li>
+<li>No test files in repository</li>
+<li>No integration testing for Shopify GraphQL layer</li>
+<li>No unit tests for cart operations (<code>createCart</code>, <code>addToCart</code>, <code>removeFromCart</code>, <code>updateCart</code>)</li>
+</ul>
+<h3>Evidence</h3>
+<pre><code class="language-typescript">// lib/shopify/index.ts - No error boundary tests
+// app/product/[handle]/page.tsx - No snapshot tests
+// lib/shopify/mutations/cart.ts - No mutation validation tests</code></pre>
+<h3>Limitation</h3>
+<p>The cart operations (<code>createCart</code>, <code>addToCart</code>, <code>removeFromCart</code>, <code>updateCart</code>) interact directly with Shopify&#x27;s GraphQL API. Without tests, any regression in query structure, variable mapping, or cart reshaping logic could silently break checkout flows. The same risk applies to product and collection queries.</p>
+<h3>Proposed Direction</h3>
+<p>Establish a testing pyramid:</p>
+<p>1. <strong>Unit tests</strong> for cart reshaping logic, product filtering, collection mapping</p>
+<p>2. <strong>Integration tests</strong> for GraphQL query/mutation execution with mocked Shopify responses</p>
+<p>3. <strong>API route tests</strong> for <code>/api/revalidate</code> webhook handling</p>
+<p>4. <strong>Component tests</strong> for critical UI flows (add-to-cart, cart display, checkout initiation)</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Regression detection before deployment</li>
+<li>Safe refactoring of Shopify integration layer</li>
+<li>Confidence when adding multi-provider support</li>
+</ul>
+<h3>Prerequisites</h3>
+<ul>
+<li>Install testing framework (<code>vitest</code> recommended for Next.js compatibility)</li>
+<li>Create <code>.env.test</code> with mock Shopify credentials</li>
+<li>Establish testing patterns consistent with Next.js App Router</li>
+</ul>
+<h3>Priority: <strong>High</strong>  </h3>
+<h3>Confidence: <strong>Evidence-backed</strong></h3>
+<h2>2. CI/CD Pipeline</h2>
+<h3>Current State</h3>
+<ul>
+<li>No <code>.github/workflows/</code> directory</li>
+<li>No Vercel integration file</li>
+<li>No deployment checks</li>
+<li>Only local <code>prettier:check</code> validation</li>
+</ul>
+<h3>Evidence</h3>
+<pre><code class="language-bash"># Repository root contains no CI configuration
+$ ls -la .github/workflows/
+ls: .github/workflows/: No such file or directory</code></pre>
+<h3>Limitation</h3>
+<p>Without CI:</p>
+<ul>
+<li>No automated quality gates before merge</li>
+<li>No build verification</li>
+<li>No type checking enforcement</li>
+<li>No test execution</li>
+<li>Manual deployment process prone to human error</li>
+</ul>
+<h3>Proposed Direction</h3>
+<p>Implement a GitHub Actions pipeline that:</p>
+<p>1. Runs type checking (<code>pnpm tsc --noEmit</code>)</p>
+<p>2. Runs tests (once test infrastructure exists)</p>
+<p>3. Runs formatting checks (<code>pnpm prettier:check</code>)</p>
+<p>4. Builds the application (<code>pnpm build</code>)</p>
+<p>5. Deploys to Vercel preview environment on pull requests</p>
+<p>6. Deploys to production on merge to main</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Consistent quality enforcement</li>
+<li>Reduced manual deployment burden</li>
+<li>Faster feedback loop for developers</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Testing infrastructure (item 1)</li>
+<li>Vercel CLI credentials for automated deployments</li>
+</ul>
+<h3>Priority: <strong>High</strong>  </h3>
+<h3>Confidence: <strong>Evidence-backed</strong></h3>
+<h2>3. Provider Abstraction Layer</h2>
+<h3>Current State</h3>
+<ul>
+<li><code>lib/shopify/index.ts</code> contains all Shopify interactions</li>
+<li>Direct GraphQL queries embedded in components</li>
+<li>No interface abstraction for commerce operations</li>
+<li><code>lib/shopify/</code> is tightly coupled throughout</li>
+</ul>
+<h3>Evidence from README</h3>
+<p>&gt; &quot;Vercel is happy to partner and work with any commerce provider to help them get a similar template up and running... Alternative providers should be able to fork this repository and swap out the <code>lib/shopify</code> file with their own implementation while leaving the rest of the template mostly unchanged.&quot;</p>
+<h3>Limitation</h3>
+<p>The README articulates an intent for provider flexibility, but the current implementation makes this difficult:</p>
+<ul>
+<li>Cart operations assume Shopify cart structure (<code>cartId</code> from cookies, <code>ShopifyCart</code> types)</li>
+<li>Collection/product queries are Shopify-specific</li>
+<li>Cache tagging uses Shopify-specific tag constants (<code>TAGS.cart</code>, <code>TAGS.collections</code>)</li>
+<li>Error handling references <code>isShopifyError</code></li>
+</ul>
+<p>To swap providers, significant code changes would be required beyond simply replacing <code>lib/shopify/index.ts</code>.</p>
+<h3>Proposed Direction</h3>
+<p>Introduce an abstraction layer that defines the contract for commerce operations:</p>
+<pre><code class="language-typescript">// lib/commerce/index.ts - Provider interface
+export interface CommerceProvider {
+  createCart(): Promise&lt;Cart&gt;;
+  addToCart(lines: CartLine[]): Promise&lt;Cart&gt;;
+  getProduct(handle: string): Promise&lt;Product | undefined&gt;;
+  getCollection(handle: string): Promise&lt;Collection | undefined&gt;;
+  // ... other operations
+}
+
+// lib/shopify/adapter.ts - Shopify implementation
+export class ShopifyProvider implements CommerceProvider { ... }
+
+// lib/bigcommerce/adapter.ts - Future BigCommerce implementation</code></pre>
+<p>Components then depend on the interface, not the implementation.</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>True provider interchangeability as stated in README</li>
+<li>Cleaner separation of concerns</li>
+<li>Easier testing with mock providers</li>
+<li>Foundation for multi-vendor deployments</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Interface design effort</li>
+<li>Refactoring of all component imports</li>
+<li>Testing infrastructure for verifying behavior parity</li>
+</ul>
+<h3>Priority: <strong>High</strong> (aligns with explicit README intent)  </h3>
+<h3>Confidence: <strong>Strongly justified</strong> (based on documented intent)</h3>
+<h2>4. Dependency Stability</h2>
+<h3>Current State</h3>
+<pre><code class="language-json">&quot;next&quot;: &quot;15.6.0-canary.60&quot;,
+&quot;react&quot;: &quot;19.0.0&quot;,</code></pre>
+<h3>Evidence</h3>
+<p><code>package.json</code> specifies:</p>
+<ul>
+<li>Next.js canary version (not stable release)</li>
+<li>React 19 (released but relatively new)</li>
+<li>Experimental Next.js features enabled in <code>next.config.ts</code></li>
+</ul>
+<h3>Limitation</h3>
+<ul>
+<li>Canary versions may contain breaking changes</li>
+<li>React 19 has breaking changes from React 18</li>
+<li>Experimental features (<code>ppr</code>, <code>inlineCss</code>, <code>useCache</code>) may change behavior</li>
+</ul>
+<p>This is a <strong>template repository</strong> intended for developers to clone and build upon. Using unstable versions increases maintenance burden and potential breakage.</p>
+<h3>Proposed Direction</h3>
+<p>1. <strong>Short-term</strong>: Pin stable versions when available; document canary rationale</p>
+<p>2. <strong>Medium-term</strong>: Establish update cadence for stable releases</p>
+<p>3. <strong>Monitoring</strong>: Track Next.js 15 stable release for App Router feature parity</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Reduced unexpected breaking changes</li>
+<li>More predictable developer experience</li>
+<li>Easier long-term maintenance</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Next.js 15 stable release with feature parity</li>
+<li>Testing to verify feature behavior after upgrades</li>
+</ul>
+<h3>Priority: <strong>Medium</strong>  </h3>
+<h3>Confidence: <strong>Evidence-backed</strong></h3>
+<h2>5. Observability and Operations</h2>
+<h3>Current State</h3>
+<ul>
+<li>No logging framework</li>
+<li>No error tracking integration</li>
+<li>No health check endpoint</li>
+<li>No metrics collection</li>
+<li>No Vercel Analytics or monitoring configured</li>
+</ul>
+<h3>Evidence</h3>
+<p><code>lib/shopify/index.ts</code> contains minimal error handling:</p>
+<pre><code class="language-typescript">catch (e) {
+  if (isShopifyError(e)) {
+    throw { ... };
+  }
+  throw { error: e, query };
+}</code></pre>
+<p>Errors are thrown but not logged or tracked.</p>
+<h3>Limitation</h3>
+<p>In production, unhandled Shopify API errors, network timeouts, or malformed responses will cause silent failures without visibility. The <code>revalidate</code> API route handles POST requests but has no input validation logging.</p>
+<h3>Proposed Direction</h3>
+<p>1. <strong>Structured logging</strong>: Integrate a logging solution (e.g., <code>pino</code>, <code>winston</code>) for request/response debugging</p>
+<p>2. <strong>Error tracking</strong>: Add Sentry or similar for production error monitoring</p>
+<p>3. <strong>Health endpoint</strong>: Create <code>/api/health</code> returning service status and Shopify connectivity</p>
+<p>4. <strong>Request logging</strong>: Log Shopify API call duration, status codes, and errors</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Faster incident diagnosis</li>
+<li>Production visibility</li>
+<li>SLA measurement capability</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Error tracking service account</li>
+<li>Logging infrastructure</li>
+</ul>
+<h3>Priority: <strong>Medium</strong>  </h3>
+<h3>Confidence: <strong>Evidence-backed</strong></h3>
+<h2>6. Environment Configuration</h2>
+<h3>Current State</h3>
+<ul>
+<li>README references <code>.env.example</code></li>
+<li>Deterministic intelligence reports &quot;no environment variables detected&quot;</li>
+<li><code>.env.example</code> file not present in repository</li>
+</ul>
+<h3>Evidence</h3>
+<pre><code class="language-typescript">// lib/shopify/index.ts
+const domain = process.env.SHOPIFY_STORE_DOMAIN
+  ? ensureStartsWith(process.env.SHOPIFY_STORE_DOMAIN, &quot;https://&quot;)
+  : &quot;&quot;;</code></pre>
+<h3>Limitation</h3>
+<p>New developers cannot easily discover required environment variables. While the README documents setup steps, an <code>.env.example</code> file would provide immediate clarity on required configuration.</p>
+<h3>Proposed Direction</h3>
+<p>Add <code>.env.example</code> with documented variables:</p>
+<pre><code class="language-bash"># Shopify Storefront API
+SHOPIFY_STORE_DOMAIN=your-store.myshopify.com
+SHOPIFY_STOREFRONT_ACCESS_TOKEN=your_token_here
+
+# Optional
+SHOPIFY_ADMIN_API_ACCESS_TOKEN= # For future admin integrations</code></pre>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Faster onboarding</li>
+<li>Reduced setup friction</li>
+<li>Clearer separation of required vs optional configuration</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>None</li>
+</ul>
+<h3>Priority: <strong>Medium</strong>  </h3>
+<h3>Confidence: <strong>Evidence-backed</strong></h3>
+<h2>7. Async Processing and Scalability</h2>
+<h3>Current State</h3>
+<ul>
+<li>All Shopify API calls are synchronous</li>
+<li>No background job processing</li>
+<li>No queue mechanism</li>
+<li>Cart operations are inline with request lifecycle</li>
+</ul>
+<h3>Evidence</h3>
+<pre><code class="language-typescript">// lib/shopify/index.ts - Synchronous fetch
+const result = await fetch(endpoint, { ... });
+const body = await result.json();</code></pre>
+<h3>Limitation</h3>
+<p>For a production e-commerce site, operations like:</p>
+<ul>
+<li>Product import/export</li>
+<li>Bulk inventory updates</li>
+<li>Analytics event processing</li>
+<li>Email notification sending</li>
+</ul>
+<p>...are not currently addressable. As the platform scales, synchronous Shopify API calls could become bottlenecks.</p>
+<h3>Proposed Direction</h3>
+<p>Establish infrastructure for async processing if workload evidence supports it:</p>
+<p>1. <strong>Near-term</strong>: Add request timeout handling for Shopify calls (currently missing)</p>
+<p>2. <strong>Medium-term</strong>: Consider Vercel Queue or similar for webhook processing</p>
+<p>3. <strong>Evaluation</strong>: Monitor Shopify API response times; implement queue if timeouts occur</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Resilience to Shopify API latency</li>
+<li>Foundation for background workloads</li>
+<li>Better user experience for long-running operations</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Observed Shopify API latency issues</li>
+<li>Vercel Queue or equivalent service</li>
+</ul>
+<h3>Priority: <strong>Longer-term</strong> (requires workload evidence)  </h3>
+<h3>Confidence: <strong>Exploratory</strong></h3>
+<h2>8. Error Resilience</h2>
+<h3>Current State</h3>
+<ul>
+<li>Basic error throwing in <code>shopifyFetch</code></li>
+<li>No retry logic</li>
+<li>No circuit breaker</li>
+<li>No fallback behavior when Shopify is unavailable</li>
+</ul>
+<h3>Evidence</h3>
+<pre><code class="language-typescript">// lib/shopify/index.ts - Synchronous fetch
+const result = await fetch(endpoint, { ... });
+const body = await result.json();</code></pre>
+<h3>Limitation</h3>
+<p>If Shopify&#x27;s API becomes temporarily unavailable or rate-limited:</p>
+<ul>
+<li>All product pages fail to render</li>
+<li>Cart operations fail completely</li>
+<li>No graceful degradation</li>
+</ul>
+<h3>Proposed Direction</h3>
+<p>1. <strong>Retry logic</strong>: Implement exponential backoff for transient failures</p>
+<p>2. <strong>Circuit breaker</strong>: Prevent cascading failures when Shopify is down</p>
+<p>3. <strong>Fallback content</strong>: Serve cached data when Shopify is unavailable</p>
+<p>4. <strong>Rate limit handling</strong>: Respect Shopify API rate limits with queuing</p>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Resilience to Shopify API issues</li>
+<li>Better user experience during outages</li>
+<li>Reduced Shopify API quota consumption</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Testing for failure scenarios</li>
+<li>Caching strategy for fallback content</li>
+</ul>
+<h3>Priority: <strong>Medium</strong>  </h3>
+<h3>Confidence: <strong>Strongly justified</strong></h3>
+<h2>9. Configuration Flexibility</h2>
+<h3>Current State</h3>
+<ul>
+<li>Cache durations are hard-coded in functions</li>
+<li>No configuration for cache TTLs</li>
+<li>No environment-based tuning</li>
+</ul>
+<h3>Evidence</h3>
+<pre><code class="language-typescript">// lib/shopify/index.ts
+export async function getCart(): Promise&lt;Cart | undefined&gt; {
+  &quot;use cache: private&quot;;
+  cacheTag(TAGS.cart);
+  cacheLife(&quot;seconds&quot;);  // Hard-coded
+}</code></pre>
+<h3>Limitation</h3>
+<p>Different deployment environments may need different caching strategies. Development may want shorter caches; production may want longer caches with aggressive revalidation.</p>
+<h3>Proposed Direction</h3>
+<p>Externalize cache configuration:</p>
+<pre><code class="language-typescript">// lib/constants/cache.ts
+export const CACHE_CONFIG = {
+  cart: process.env.CACHE_CART_SECONDS || &quot;seconds&quot;,
+  collections: process.env.CACHE_COLLECTIONS_SECONDS || &quot;days&quot;,
+  products: process.env.CACHE_PRODUCTS_SECONDS || &quot;days&quot;,
+};</code></pre>
+<h3>Expected Benefit</h3>
+<ul>
+<li>Environment-specific tuning without code changes</li>
+<li>Easier performance optimization</li>
+<li>Better CI/CD testing scenarios</li>
+</ul>
+<h3>Dependencies</h3>
+<ul>
+<li>Environment variable documentation</li>
+</ul>
+<h3>Priority: <strong>Longer-term</strong>  </h3>
+<h3>Confidence: <strong>Exploratory</strong></h3>
+<h2>Prioritized Roadmap Summary</h2>
+<table><tbody>
+<tr><td>Priority</td><td>Direction</td><td>Confidence</td><td>Effort</td></tr>
+<tr><td><strong>High</strong></td><td>Testing Infrastructure</td><td>Evidence-backed</td><td>Medium</td></tr>
+<tr><td><strong>High</strong></td><td>CI/CD Pipeline</td><td>Evidence-backed</td><td>Low</td></tr>
+<tr><td><strong>High</strong></td><td>Provider Abstraction</td><td>Strongly justified</td><td>High</td></tr>
+<tr><td><strong>Medium</strong></td><td>Dependency Stability</td><td>Evidence-backed</td><td>Low</td></tr>
+<tr><td><strong>Medium</strong></td><td>Observability</td><td>Evidence-backed</td><td>Medium</td></tr>
+<tr><td><strong>Medium</strong></td><td>Environment Configuration</td><td>Evidence-backed</td><td>Low</td></tr>
+<tr><td><strong>Medium</strong></td><td>Error Resilience</td><td>Strongly justified</td><td>Medium</td></tr>
+<tr><td><strong>Longer-term</strong></td><td>Async Processing</td><td>Exploratory</td><td>High</td></tr>
+<tr><td><strong>Longer-term</strong></td><td>Configuration Flexibility</td><td>Exploratory</td><td>Low</td></tr>
+</tbody></table>
+<h2>Phased Evolution Narrative</h2>
+<h3>Phase 1: Foundation (Testing + CI)</h3>
+<p>Establish the safety net before architectural changes:</p>
+<p>1. Add Vitest testing framework</p>
+<p>2. Write tests for cart operations and GraphQL reshaping</p>
+<p>3. Add GitHub Actions pipeline with type checking and build verification</p>
+<p>4. Add <code>.env.example</code> for configuration clarity</p>
+<p><strong>Rationale</strong>: Enables safe experimentation in subsequent phases.</p>
+<h3>Phase 2: Reliability (Observability + Resilience)</h3>
+<p>Improve production readiness:</p>
+<p>1. Add structured logging and error tracking (Sentry)</p>
+<p>2. Implement retry logic for Shopify API calls</p>
+<p>3. Add health check endpoint</p>
+<p>4. Establish circuit breaker pattern</p>
+<p><strong>Rationale</strong>: Reduces operational risk as usage increases.</p>
+<h3>Phase 3: Extensibility (Provider Abstraction)</h3>
+<p>Realize the multi-provider intent documented in README:</p>
+<p>1. Define <code>CommerceProvider</code> interface</p>
+<p>2. Create adapter pattern for Shopify</p>
+<p>3. Refactor components to depend on interface</p>
+<p>4. Add integration tests for provider behavior parity</p>
+<p><strong>Rationale</strong>: Opens marketplace to non-Shopify providers; reduces vendor lock-in.</p>
+<h3>Phase 4: Optimization (Dependencies + Configuration)</h3>
+<p>Mature the platform for long-term maintenance:</p>
+<p>1. Update to stable Next.js/Release versions</p>
+<p>2. Externalize cache configuration to environment</p>
+<p>3. Evaluate async processing needs based on traffic patterns</p>
+<p><strong>Rationale</strong>: Reduces maintenance burden and prepares for scale.</p>
+<h2>Conclusion</h2>
+<p>This repository is a well-structured Shopify headless storefront that prioritizes developer experience and Vercel deployment simplicity. Its primary future directions stem from three sources:</p>
+<p>1. <strong>Stated intent</strong> (README): Multi-provider support is explicitly mentioned but not implemented</p>
+<p>2. <strong>Maturity gaps</strong> (no tests, no CI): Standard template improvements needed</p>
+<p>3. <strong>Production hardening</strong> (observability, resilience): Operational gaps for scale</p>
+<p>The most credible next direction is establishing a testing and CI foundation that enables safe evolution toward the multi-provider architecture described in the README, followed by production hardening through observability and error resilience improvements.</p>
+<p><strong>Confidence Assessment:</strong></p>
+<ul>
+<li>Recommendations are grounded in repository evidence</li>
+<li>Multi-provider direction directly follows README intent</li>
+<li>Testing/CI direction addresses confirmed absence</li>
+<li>Error resilience direction follows from observed lack of retry/circuit breaker</li>
+<li>Async processing remains exploratory pending workload evidence</li>
+</ul>
+</main>
+</body>
+</html>

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>business-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Business Requirements Analysis</h1>
+<h2>Business Context</h2>
+<p>The repository contains a high-performance ecommerce storefront template developed as a reference implementation for online retail experiences. The application is positioned as a starter that enables merchants and integrators to launch branded, content-rich shopping sites that integrate with external commerce platforms (in the canonical implementation, Shopify) for catalog, cart, and order management.</p>
+<p>The storefront is designed to support direct-to-consumer merchandising of physical goods, including:</p>
+<ul>
+<li>Product discovery</li>
+<li>Browsing of curated collections</li>
+<li>Individual product evaluation with variant selection</li>
+<li>Cart management</li>
+<li>Propagation of catalog updates from the underlying commerce platform</li>
+</ul>
+<p>The repository also serves as a platform that multiple external commerce providers have forked to deliver their own integrations. Since the repository explicitly advertises itself as a template that can be cloned and adapted by third parties, a substantial portion of the business requirements relates to <strong>reusability</strong>, <strong>brand adaptability</strong>, and <strong>provider neutrality</strong> rather than to a single merchant&#x27;s operating model.</p>
+<p>---</p>
+<h2>Stakeholders and Business Roles</h2>
+<p>The evidence points to the following stakeholder roles relevant to the business requirements:</p>
+<table><tbody>
+<tr><td>Role</td><td>Description</td></tr>
+<tr><td><strong>End customers / shoppers</strong></td><td>Individuals who browse the storefront, evaluate products, manage a shopping cart, and complete purchases through the underlying commerce platform.</td></tr>
+<tr><td><strong>Merchants / store operators</strong></td><td>Businesses that sell products through the storefront and rely on it to expose their catalog and accept orders.</td></tr>
+<tr><td><strong>Merchandising and content editors</strong></td><td>Roles that curate featured products, collections, and pages that appear on the storefront.</td></tr>
+<tr><td><strong>Commerce platform providers</strong></td><td>External organisations (in this repository, Shopify) that supply product, inventory, cart, and order data through a managed integration.</td></tr>
+<tr><td><strong>Integrators / developers / solution partners</strong></td><td>Third parties that adopt, fork, customise, and deploy the template for their own commerce provider integration or for client merchants.</td></tr>
+<tr><td><strong>Vercel (template maintainer)</strong></td><td>The organisation that publishes, maintains, and evolves the reference template.</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>Business Capabilities</h2>
+<p>The repository evidence supports the following business capabilities:</p>
+<table><tbody>
+<tr><td>Capability</td><td>Description</td></tr>
+<tr><td><strong>Branded storefront presentation</strong></td><td>Capability to render a merchant&#x27;s identity (company name, site name, logo) across the site.</td></tr>
+<tr><td><strong>Product catalog browsing</strong></td><td>Capability to list available products and present them in curated and filtered layouts (homepage featured grid, collection pages, search).</td></tr>
+<tr><td><strong>Product detail evaluation</strong></td><td>Capability to view individual product information including imagery, description, variants, pricing, and availability.</td></tr>
+<tr><td><strong>Collection and category browsing</strong></td><td>Capability to navigate products grouped by curated collections.</td></tr>
+<tr><td><strong>Search and filtering</strong></td><td>Capability to search across the catalog and apply filters such as price, with faceted results.</td></tr>
+<tr><td><strong>Shopping cart management</strong></td><td>Capability to add, update quantity of, and remove items, and to view cart contents prior to checkout handoff.</td></tr>
+<tr><td><strong>Checkout hand-off</strong></td><td>Capability to direct customers from the cart to the commerce provider&#x27;s hosted checkout to complete payment and order placement.</td></tr>
+<tr><td><strong>Content page rendering</strong></td><td>Capability to render merchant-authored content pages (for example, &quot;About&quot;, policies, lookbooks).</td></tr>
+<tr><td><strong>On-site navigation</strong></td><td>Capability to expose header, footer, and mobile navigation to help customers locate products and information.</td></tr>
+<tr><td><strong>Search engine and social discoverability</strong></td><td>Capability to expose sitemap, robots, and OpenGraph metadata so that the storefront is indexable and shareable.</td></tr>
+<tr><td><strong>Catalog synchronisation</strong></td><td>Capability to propagate changes from the commerce platform (for example, price or stock updates) into the storefront without redeployment.</td></tr>
+<tr><td><strong>Template adaptability</strong></td><td>Capability for integrators to substitute the underlying commerce provider implementation while preserving the storefront experience.</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>Principal Business Workflows</h2>
+<p>The repository implies the following end-to-end business workflows:</p>
+<p>1. <strong>Discovery and browsing workflow</strong> — A customer lands on the storefront, browses featured items on the home page, navigates collections, or searches the catalog.</p>
+<p>2. <strong>Product evaluation workflow</strong> — A customer selects a product, views its gallery and description, chooses available variants (such as size or option), and confirms availability and price.</p>
+<p>3. <strong>Cart management workflow</strong> — A customer adds selected items to a cart, reviews the cart, adjusts quantities, removes items, and proceeds to checkout.</p>
+<p>4. <strong>Checkout and order placement workflow</strong> — A customer is handed off to the commerce provider&#x27;s secure checkout to complete payment and place the order.</p>
+<p>5. <strong>Content consumption workflow</strong> — A customer reads merchant-authored pages for brand storytelling, policies, or promotional content.</p>
+<p>6. <strong>Catalog update workflow</strong> — A merchant updates products in the commerce platform, and those updates are reflected on the storefront.</p>
+<p>7. <strong>Template adoption workflow</strong> — An integrator forks or clones the template, swaps in a different commerce provider, configures brand and product access, and deploys a new storefront.</p>
+<p>---</p>
+<h2>Business Requirements</h2>
+<h3>Storefront Branding and Identity</h3>
+<ul>
+<li>The storefront must present the merchant&#x27;s company name, site name, and logo so that customers can identify whose store they are visiting.</li>
+<li>The storefront must support a consistent branded presentation across desktop and mobile experiences.</li>
+</ul>
+<h3>Product Catalog Browsing</h3>
+<ul>
+<li>Customers must be able to view a curated set of products on the home page representing the merchant&#x27;s featured or highlighted offerings.</li>
+<li>Customers must be able to browse products grouped into collections defined by the merchant.</li>
+<li>Product listings must communicate the information needed for purchase decisions: product name, imagery, and price.</li>
+<li>Customers must be able to open an individual product&#x27;s detail page from any product listing.</li>
+</ul>
+<h3>Product Detail Evaluation</h3>
+<ul>
+<li>Customers must be able to view a product&#x27;s image gallery and other product details on its dedicated page.</li>
+<li>Customers must be able to see the product&#x27;s description as authored by the merchant.</li>
+<li>Where a product is offered in multiple variants, customers must be able to select an available variant before adding it to their cart.</li>
+<li>Customers must be able to see the price corresponding to the selected variant.</li>
+<li>Customers must be able to identify whether a variant is unavailable before attempting to add it to the cart.</li>
+</ul>
+<h3>Search and Filtering</h3>
+<ul>
+<li>Customers must be able to search the catalog for products by keyword.</li>
+<li>Customers must be able to filter product listings by supported attributes (such as price).</li>
+<li>Customers must be able to browse all products when no filter or search term is supplied.</li>
+<li>The storefront must expose available collections as part of the search and filtering experience.</li>
+</ul>
+<h3>Shopping Cart</h3>
+<ul>
+<li>Customers must be able to add a selected product variant to a shopping cart.</li>
+<li>Customers must be able to view the contents of their cart, including item names, selected variants, unit prices, and subtotals.</li>
+<li>Customers must be able to change the quantity of an item in the cart.</li>
+<li>Customers must be able to remove an item from the cart.</li>
+<li>Customers must be able to view an estimated order subtotal that reflects all items in the cart.</li>
+<li>Customers must be able to retain their selected items while continuing to browse the storefront.</li>
+<li>The cart must reflect updates optimistically so that customers perceive immediate confirmation of their actions.</li>
+</ul>
+<h3>Checkout and Order Placement</h3>
+<ul>
+<li>Customers must be able to proceed from the cart to a secure checkout to complete payment and place the order.</li>
+<li>Checkout and order capture must be handled by the commerce platform so that payment and order data remain under the merchant&#x27;s existing commerce operating model.</li>
+<li>The storefront must hand off the cart contents to the commerce platform&#x27;s checkout in a way that preserves the customer&#x27;s selections.</li>
+</ul>
+<h3>Content and Navigation</h3>
+<ul>
+<li>The storefront must render merchant-authored content pages requested by customers (such as &quot;About&quot; or policy pages).</li>
+<li>The storefront must provide navigation (header, footer, and mobile menu) that allows customers to locate products, collections, and content pages.</li>
+<li>The storefront must provide site search as a discoverability mechanism from primary navigation.</li>
+</ul>
+<h3>Discoverability and Sharing</h3>
+<ul>
+<li>The storefront must expose a sitemap so that search engines can discover its pages.</li>
+<li>The storefront must respect crawling guidance (such as disallow rules) appropriate to its operating context.</li>
+<li>Pages on the storefront must be shareable on social platforms with appropriate preview metadata (such as title, description, and image).</li>
+</ul>
+<h3>Catalog Synchronisation with the Commerce Platform</h3>
+<ul>
+<li>The storefront must reflect product, price, and availability changes made in the commerce platform without requiring a redeployment.</li>
+<li>Updates initiated by the commerce platform must be propagated to the storefront on demand so that customers do not see stale catalog information.</li>
+</ul>
+<h3>Template Reusability and Provider Adaptability</h3>
+<ul>
+<li>The template must be reusable by third-party commerce providers as the basis for their own branded storefront integrations.</li>
+<li>The template must isolate the commerce-provider-specific integration so that alternative providers can substitute their own implementation without rewriting the storefront experience.</li>
+<li>The template must be configurable for the adopting merchant&#x27;s brand identity (company name, site name) without code changes.</li>
+</ul>
+<h3>Operational Quality and User Experience</h3>
+<ul>
+<li>The storefront must present a smooth browsing experience, including visual feedback during asynchronous operations (such as cart updates or page transitions).</li>
+<li>The storefront must handle errors gracefully so that customers are presented with a recoverable path rather than a dead end.</li>
+</ul>
+<p>---</p>
+<h2>Business Rules and Constraints</h2>
+<table><tbody>
+<tr><td>Rule</td><td>Description</td></tr>
+<tr><td>Cart ownership</td><td>The cart is owned by the commerce platform; the storefront acts as the customer-facing presentation layer and must defer authoritative cart, pricing, and checkout logic to that platform.</td></tr>
+<tr><td>Pricing authority</td><td>Prices displayed to customers must be the prices returned by the commerce platform for the selected variant and market; the storefront must not independently override authoritative pricing.</td></tr>
+<tr><td>Variant availability</td><td>A product variant that is unavailable must not be addable to the cart.</td></tr>
+<tr><td>Brand configuration</td><td>Brand identifiers (company name, site name) displayed to customers must be sourced from configuration supplied at deploy time.</td></tr>
+<tr><td>Catalog freshness</td><td>Catalog refreshes initiated by the commerce platform must not require a full site redeployment.</td></tr>
+<tr><td>Integration isolation</td><td>The template&#x27;s storefront experience must remain stable across alternative commerce-provider integrations; the provider-specific portion must be replaceable without changes elsewhere.</td></tr>
+<tr><td>Payment sovereignty</td><td>The storefront must not persist payment information or complete payment processing itself; payment capture is the responsibility of the commerce platform&#x27;s checkout.</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>Required Business Outcomes</h2>
+<ul>
+<li>Customers are able to discover, evaluate, and select merchandise for purchase through a fast, branded storefront.</li>
+<li>Merchants are able to present their catalog and accept orders through the storefront without operating their own commerce backend.</li>
+<li>Changes to the catalog made in the commerce platform are reflected on the storefront within an acceptable operational window.</li>
+<li>Third-party commerce providers can deliver a comparable storefront experience for their own merchants by building on the same template.</li>
+<li>The storefront supports search-engine discoverability and social sharing of product and content pages.</li>
+</ul>
+<p>---</p>
+<h2>Scope Boundaries and Exclusions</h2>
+<p>Based on the repository evidence, the following are out of scope of the business requirements addressed by this template:</p>
+<ul>
+<li><strong>Payment processing and PCI-sensitive data handling</strong> — owned by the commerce platform&#x27;s checkout</li>
+<li><strong>Customer account, registration, and authentication flows</strong> — not represented in the storefront workflow</li>
+<li><strong>Order history, returns, refunds, and post-purchase customer self-service</strong> — owned by the commerce platform</li>
+<li><strong>Inventory management, fulfillment, shipping calculation, and tax calculation</strong> — owned by the commerce platform</li>
+<li><strong>Multi-currency, multi-locale, and market-specific pricing presentation</strong> — not evidenced as a distinct business capability in this template</li>
+<li><strong>Admin-side catalog management</strong> — owned by the commerce platform</li>
+<li><strong>Customer reviews and ratings submission or display</strong> — not evidenced</li>
+<li><strong>Loyalty, promotions engine, and discount code redemption</strong> — not evidenced</li>
+<li><strong>Multi-merchant or marketplace capabilities</strong> — not evidenced</li>
+</ul>
+<p>---</p>
+<h2>External Dependencies</h2>
+<p>The following external dependencies are required to satisfy the business requirements:</p>
+<p>1. <strong>Commerce platform</strong> — A third-party commerce platform that supplies product catalog, pricing, inventory, cart, and checkout services. The repository&#x27;s canonical implementation depends on Shopify&#x27;s Storefront API and revalidation webhook mechanism; the requirements above remain valid regardless of which commerce platform fills this role.</p>
+<p>2. <strong>Deployment and hosting provider</strong> — A deployment and hosting provider capable of running the storefront and applying environment-specific configuration (brand identifiers, commerce credentials).</p>
+<p>3. <strong>Revalidation mechanism</strong> — A mechanism by which the commerce platform can notify the storefront of catalog changes so that on-demand refresh is possible.</p>
+<p>---</p>
+<h2>Important Uncertainties</h2>
+<p>The following business needs cannot be definitively established from the repository evidence and are flagged as unknown or inferred:</p>
+<ul>
+<li>Whether merchants are expected to operate a single storefront, multiple storefronts per brand, or multiple markets per storefront.</li>
+<li>Whether customer accounts, wishlists, or persistent profile data are intended to be supported by the storefront or remain in the commerce platform.</li>
+<li>Whether the storefront is expected to support promotions, discount codes, or gift cards as part of the shopping workflow.</li>
+<li>Whether multi-currency display and selection is a required capability for the storefront.</li>
+<li>The intended editorial workflow for merchants managing featured products, collections, and content pages (the storefront consumes such data, but the editorial process itself is not in scope of this repository).</li>
+<li>Specific service-level expectations for catalog freshness after a commerce-platform update.</li>
+</ul>
+</main>
+</body>
+</html>

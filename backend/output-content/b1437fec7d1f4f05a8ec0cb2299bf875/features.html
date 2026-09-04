@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>features</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Features Analysis</h1>
+<p>This analysis reconstructs the implemented functional capabilities of the <strong>Next.js Commerce (Vercel) — Shopify edition</strong> storefront. The application is a server-rendered ecommerce front end that proxies product, collection, cart, page, and menu data from a Shopify Storefront GraphQL API and exposes them through a public shopping site plus a single internal webhook endpoint.</p>
+<p>The inventory below groups implementation evidence into coherent user-facing workflows, operator-facing capabilities, and supporting internal behaviors. Features are described as capabilities, not as raw endpoints or files.</p>
+<p>---</p>
+<h2>1. Storefront Browsing and Discovery</h2>
+<h3>1.1 Home Page Curation</h3>
+<p><strong>Capability.</strong> The home page (<code>/</code>) presents a hand-curated showcase of the catalog rather than an exhaustive listing. The composition depends on two named Shopify collections whose handles are reserved by the application.</p>
+<p><strong>Workflow.</strong> When a shopper opens the root URL:</p>
+<p>1. The home page renders the <code>ThreeItemGrid</code> component, which calls <code>getCollectionProducts({ collection: &quot;hidden-homepage-featured-items&quot; })</code>.</p>
+<p>2. If that collection contains at least three products, the first three are placed in a hero grid: a large featured product on the left and two secondary products stacked on the right.</p>
+<p>3. The <code>Carousel</code> component then calls <code>getCollectionProducts({ collection: &quot;hidden-homepage-carousel&quot; })</code> and renders a horizontally scrolling strip. The product list is intentionally triplicated so the carousel can loop visually on wide screens.</p>
+<p>4. The site footer is rendered at the bottom of the page.</p>
+<p><strong>Outcome.</strong> Visitors see a curated landing experience that exposes only products the merchant has placed in two specifically named Shopify collections. If either collection is empty or missing, the affected section is silently omitted; the page still renders.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/page.tsx</code> (composition of the page).</li>
+<li><code>components/grid/three-items.tsx</code> (hero grid; reads <code>hidden-homepage-featured-items</code>).</li>
+<li><code>components/carousel.tsx</code> (reads <code>hidden-homepage-carousel</code>).</li>
+<li><code>lib/shopify/index.ts</code> — <code>getCollectionProducts</code> and the convention that &quot;Collections that start with <code>hidden-*</code> are hidden from the search page.&quot;</li>
+</ul>
+<h3>1.2 Search and Free-Text Querying</h3>
+<p><strong>Capability.</strong> Shoppers can search the entire catalog by free-text query and refine the result set with a sort selector.</p>
+<p><strong>Workflow.</strong> A search bar is rendered in the navbar. When a shopper submits a query:</p>
+<p>1. The form posts to <code>/search</code> with the <code>q</code> parameter (<code>components/layout/navbar/search.tsx</code>).</p>
+<p>2. The <code>SearchPage</code> (<code>app/search/page.tsx</code>) reads <code>q</code> and <code>sort</code> from the URL, maps <code>sort</code> to a Shopify <code>ProductSortKeys</code> + reverse flag using the <code>sorting</code> table in <code>lib/constants.ts</code>, and calls <code>getProducts({ sortKey, reverse, query })</code>.</p>
+<p>3. The page reports the result count (&quot;Showing N results for <code>query</code>&quot;) or a &quot;no products match&quot; message.</p>
+<p>4. A <code>SearchLayout</code> (<code>app/search/layout.tsx</code>) wraps the page with a left-side collections facet, a right-side sort filter, and a footer.</p>
+<p>The five available sort options are: Relevance, Trending (best-selling), Latest arrivals, Price low-to-high, Price high-to-low.</p>
+<p><strong>Outcome.</strong> Shoppers can locate products by text and reorder the result list by recency, popularity, or price.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/search/page.tsx</code>.</li>
+<li><code>app/search/layout.tsx</code> (faceted layout).</li>
+<li><code>components/layout/navbar/search.tsx</code>.</li>
+<li><code>components/layout/search/filter/index.tsx</code> and <code>dropdown.tsx</code> (sort UI).</li>
+<li><code>lib/shopify/index.ts</code> — <code>getProducts</code>.</li>
+<li><code>lib/constants.ts</code> — <code>sorting</code> and <code>defaultSort</code>.</li>
+</ul>
+<h3>1.3 Collection-Based Browsing</h3>
+<p><strong>Capability.</strong> Shoppers can browse a category of products, identified by its Shopify collection handle, and optionally sort the result list.</p>
+<p><strong>Workflow.</strong> When a shopper opens <code>/search/[collection]</code>:</p>
+<p>1. The page calls <code>getCollection(params.collection)</code> for metadata and SEO data.</p>
+<p>2. It calls <code>getCollectionProducts({ collection, sortKey, reverse })</code> to retrieve the product list.</p>
+<p>3. The page renders the products in a responsive grid; if the collection has no products, it displays &quot;No products found in this collection&quot;.</p>
+<p>4. <code>generateMetadata</code> produces per-collection title, description, and OpenGraph data sourced from Shopify SEO fields.</p>
+<p>Collection discovery is also exposed as a left-hand facet on every search page. The list of visible collections is the result of <code>getCollections()</code>, which:</p>
+<ul>
+<li>Always prepends a synthetic &quot;All&quot; entry pointing to <code>/search</code>.</li>
+<li>Filters out any Shopify collection whose handle starts with <code>hidden</code>, allowing merchants to keep curation-only collections out of the public facet while still using them for the homepage.</li>
+</ul>
+<p><strong>Outcome.</strong> Shoppers can navigate the store by category with the same sort options as global search, and the UI ensures the curation collections do not leak into the public navigation.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/search/[collection]/page.tsx</code>.</li>
+<li><code>app/search/layout.tsx</code>.</li>
+<li><code>components/layout/search/collections.tsx</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>getCollections</code>, <code>getCollection</code>, <code>getCollectionProducts</code>, and the <code>hidden</code> handle convention.</li>
+<li><code>app/search/[collection]/opengraph-image.tsx</code> for social-card generation.</li>
+</ul>
+<h3>1.4 Content Pages</h3>
+<p><strong>Capability.</strong> The application serves generic content pages authored in Shopify (handles ending up at <code>/{handle}</code>) as part of the storefront, with metadata, OpenGraph tags, and a &quot;last updated&quot; stamp.</p>
+<p><strong>Workflow.</strong> When a shopper visits <code>/{handle}</code>:</p>
+<p>1. The dynamic route <code>app/[page]/page.tsx</code> calls <code>getPage(params.page)</code>.</p>
+<p>2. If the page is not found, the route calls <code>notFound()</code> (404).</p>
+<p>3. Otherwise the title, HTML body (rendered through the <code>Prose</code> component), and a localized last-updated date are shown.</p>
+<p>4. <code>generateMetadata</code> populates title, description, <code>article</code> OpenGraph type, and publication/modification timestamps.</p>
+<p>The <code>sitemap</code> route calls <code>getPages()</code> so all content pages are submitted to search engines.</p>
+<p><strong>Outcome.</strong> Merchants can publish and update editorial pages (about, terms, etc.) from Shopify and have them appear at the storefront root, with correct SEO metadata.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/[page]/page.tsx</code>.</li>
+<li><code>app/[page]/opengraph-image.tsx</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>getPage</code>, <code>getPages</code>.</li>
+<li><code>lib/shopify/queries/page.ts</code>.</li>
+</ul>
+<h3>1.5 Menu-Driven Site Navigation</h3>
+<p><strong>Capability.</strong> The header and footer render navigation menus driven by Shopify Online Store menus, so merchants can change site navigation without redeploying.</p>
+<p><strong>Workflow.</strong> On every page render that includes the navbar or footer:</p>
+<p>1. The <code>Navbar</code> calls <code>getMenu(&quot;next-js-frontend-header-menu&quot;)</code> and renders each item as a link.</p>
+<p>2. The <code>Footer</code> calls <code>getMenu(&quot;next-js-frontend-footer-menu&quot;)</code> and renders the same shape in the footer.</p>
+<p>3. The <code>lib/shopify</code> <code>getMenu</code> function rewrites Shopify URLs so that <code>/collections/...</code> becomes <code>/search/...</code> and <code>/pages/...</code> is stripped, presenting consistent local routes to shoppers.</p>
+<p>4. The <code>MobileMenu</code> component renders the same data in a headless-ui dialog for narrow viewports.</p>
+<p><strong>Outcome.</strong> Navigation links reflect the merchant&#x27;s Shopify menu configuration; clicking a link routes the shopper to the appropriate local page.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>components/layout/navbar/index.tsx</code>.</li>
+<li><code>components/layout/navbar/mobile-menu.tsx</code>.</li>
+<li><code>components/layout/footer.tsx</code> and <code>components/layout/footer-menu.tsx</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>getMenu</code> and its URL rewriting.</li>
+<li><code>lib/shopify/queries/menu.ts</code>.</li>
+</ul>
+<p>---</p>
+<h2>2. Product Detail Experience</h2>
+<h3>2.1 Product Detail Page</h3>
+<p><strong>Capability.</strong> Each product has a public detail page at <code>/product/[handle]</code> that presents media, copy, price, and stock signals with rich SEO markup.</p>
+<p><strong>Workflow.</strong> When a shopper opens a product URL:</p>
+<p>1. The route handler calls <code>getProduct(params.handle)</code>. If the result is <code>undefined</code>, the route calls <code>notFound()</code> (404).</p>
+<p>2. The product is rendered as a two-column layout: a <code>Gallery</code> (up to 5 images) on the left, and a <code>ProductDescription</code> on the right.</p>
+<p>3. The page emits a <code>Product</code> JSON-LD block (<code>schema.org/Product</code> with <code>AggregateOffer</code>) including price range and <code>InStock</code>/<code>OutOfStock</code> availability.</p>
+<p>4. <code>generateMetadata</code> writes per-product title, description, OpenGraph image, and conditional <code>robots</code> directives. If the product carries the <code>nextjs-frontend-hidden</code> tag, search engines are instructed not to index or follow the page.</p>
+<p>5. A <code>RelatedProducts</code> section is rendered below, calling <code>getProductRecommendations(product.id)</code>. If Shopify returns no recommendations, the section is omitted.</p>
+<p><strong>Outcome.</strong> Shoppers can examine a single product in depth, including variant selection and stock state, while search engines and social platforms receive structured metadata.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/product/[handle]/page.tsx</code>.</li>
+<li><code>components/product/gallery.tsx</code>.</li>
+<li><code>components/product/product-description.tsx</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>getProduct</code>, <code>getProductRecommendations</code>.</li>
+<li><code>lib/constants.ts</code> — <code>HIDDEN_PRODUCT_TAG = &quot;nextjs-frontend-hidden&quot;</code>.</li>
+<li><code>lib/shopify/fragments/product.ts</code> (GraphQL shape for the product detail payload).</li>
+</ul>
+<h3>2.2 Product Image Gallery</h3>
+<p><strong>Capability.</strong> The product detail page supports a navigable image gallery with prev/next controls and a thumbnail strip, all driven by URL state.</p>
+<p><strong>Workflow.</strong> The <code>Gallery</code> component reads the current <code>image</code> index from <code>useSearchParams</code>. The shopper can:</p>
+<ul>
+<li>Click a thumbnail to set the active image, which calls <code>router.replace</code> with the new <code>?image=N</code> parameter (no scroll).</li>
+<li>Click the prev/next overlay arrows to cycle through images, wrapping at both ends.</li>
+</ul>
+<p>The visible set is the first five images of the product (<code>product.images.slice(0, 5)</code>).</p>
+<p><strong>Outcome.</strong> Shoppers can browse all product imagery without losing the current page state, and the active image is shareable via URL.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong> <code>components/product/gallery.tsx</code>; image slicing in <code>app/product/[handle]/page.tsx</code>.</p>
+<h3>2.3 Variant Selection</h3>
+<p><strong>Capability.</strong> For products with more than one option, shoppers can choose combinations (e.g. size/color) and see availability reflected in the UI.</p>
+<p><strong>Workflow.</strong> The <code>VariantSelector</code>:</p>
+<p>1. Reads the current selection from <code>useSearchParams</code> (one URL parameter per option name, lower-cased).</p>
+<p>2. Builds a <code>combinations</code> table of <code>availableForSale</code> for every Shopify variant.</p>
+<p>3. For each option value, determines whether a fully-matching variant exists in stock. Out-of-stock values are rendered with a strikethrough and disabled. The active value is outlined.</p>
+<p>4. When the shopper clicks a value, <code>router.replace</code> updates the URL parameter, keeping the rest of the page state intact.</p>
+<p>The <code>AddToCart</code> button then derives the <code>selectedVariantId</code> by matching the URL parameters to <code>variant.selectedOptions</code>. Products with zero or exactly one option/value skip the selector entirely.</p>
+<p><strong>Outcome.</strong> Shoppers select product variants through deep-linkable URL state, and unavailable combinations are visibly disabled, preventing broken add-to-cart attempts.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>components/product/variant-selector.tsx</code>.</li>
+<li><code>components/cart/add-to-cart.tsx</code> (selectedVariantId derivation).</li>
+<li><code>lib/shopify/fragments/product.ts</code> (variant data shape, including <code>availableForSale</code>).</li>
+</ul>
+<p>---</p>
+<h2>3. Shopping Cart and Checkout Handoff</h2>
+<h3>3.1 Cart Lifecycle</h3>
+<p><strong>Capability.</strong> The application maintains a per-visitor shopping cart backed by the Shopify Storefront API, with a persistent <code>cartId</code> cookie and a React <code>CartProvider</code> context that streams the cart to client components.</p>
+<p><strong>Workflow.</strong></p>
+<ul>
+<li>On first interaction (the cart modal mounts), <code>CartModal</code> invokes the server action <code>createCartAndSetCookie</code>, which calls <code>createCart()</code> in <code>lib/shopify</code> (the <code>cartCreate</code> mutation) and writes the returned <code>cart.id</code> to a <code>cartId</code> cookie.</li>
+<li>On every page load, <code>app/layout.tsx</code> calls <code>getCart()</code> without awaiting it, passing the resulting <code>Promise&lt;Cart | undefined&gt;</code> to <code>CartProvider</code>. Server components receive a stable promise reference, while client components use the React <code>use</code> hook to unwrap it.</li>
+<li>The cart is tagged with the <code>cart</code> cache tag and a private cache directive, so per-user cart state is not shared between visitors.</li>
+<li>A cookie that no longer resolves to a valid Shopify cart is treated as missing (the cart is <code>null</code> after checkout completion).</li>
+</ul>
+<p><strong>Outcome.</strong> Each visitor has a continuously available cart object during their session without a full page reload, and stale cookies are gracefully handled.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/layout.tsx</code> (Promise-based cart fetching).</li>
+<li><code>components/cart/cart-context.tsx</code> (<code>CartProvider</code>, <code>useCart</code>, optimistic reducer).</li>
+<li><code>components/cart/actions.ts</code> — <code>createCartAndSetCookie</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>createCart</code>, <code>getCart</code> (private cache, <code>TAGS.cart</code>).</li>
+<li><code>lib/shopify/fragments/cart.ts</code>.</li>
+</ul>
+<h3>3.2 Add to Cart with Optimistic Update</h3>
+<p><strong>Capability.</strong> Shoppers can add a product variant to the cart from a product detail page with immediate visual feedback, while the authoritative mutation completes in the background.</p>
+<p><strong>Workflow.</strong> When a shopper clicks &quot;Add To Cart&quot;:</p>
+<p>1. The <code>AddToCart</code> component derives the <code>selectedVariantId</code> from URL parameters (or, for single-variant products, falls back to the only variant).</p>
+<p>2. It synchronously dispatches an optimistic <code>addCartItem</code> action through the client <code>CartProvider</code> reducer, so the cart modal opens and the line item appears immediately.</p>
+<p>3. In parallel, it invokes the server action <code>addItem</code>, which calls <code>addToCart([{ merchandiseId, quantity: 1 }])</code> (the <code>cartLinesAdd</code> mutation) and then calls <code>updateTag(TAGS.cart)</code> to invalidate the cart cache.</p>
+<p>4. The cart modal&#x27;s open state is bound to a <code>useEffect</code> that watches <code>cart.totalQuantity</code>; any increase (e.g. a successful add) auto-opens the modal.</p>
+<p>5. If the product is unavailable, the button renders &quot;Out Of Stock&quot; and is disabled. If a required variant is not yet selected, the button renders &quot;Please select an option&quot; and is disabled.</p>
+<p><strong>Outcome.</strong> Shoppers experience a near-instant add-to-cart interaction that is resilient to slow networks, and the UI prevents invalid submissions.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>components/cart/add-to-cart.tsx</code> (variant resolution, form action, disabled states).</li>
+<li><code>components/cart/cart-context.tsx</code> (<code>createOrUpdateCartItem</code>, optimistic reducer, <code>updateCartTotals</code>).</li>
+<li><code>components/cart/modal.tsx</code> (auto-open on quantity change).</li>
+<li><code>components/cart/actions.ts</code> — <code>addItem</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>addToCart</code>.</li>
+<li><code>lib/shopify/mutations/cart.ts</code> — <code>addToCartMutation</code>.</li>
+</ul>
+<h3>3.3 Edit Line Item Quantity</h3>
+<p><strong>Capability.</strong> From the cart modal, shoppers can change the quantity of any line item, including removing it by setting quantity to zero.</p>
+<p><strong>Workflow.</strong> Each line in the cart modal renders <code>EditItemQuantityButton</code> controls:</p>
+<p>1. The plus/minus button triggers the <code>updateItemQuantity</code> server action with <code>{ merchandiseId, quantity }</code>.</p>
+<p>2. The server action reads the current cart, finds the matching line, and either:</p>
+<ul>
+<li>Calls <code>removeFromCart([lineItem.id])</code> (the <code>cartLinesRemove</code> mutation) if the new quantity is zero.</li>
+<li>Calls <code>updateCart([...])</code> (the <code>cartLinesUpdate</code> mutation) otherwise.</li>
+<li>Calls <code>addToCart([...])</code> (the <code>cartLinesAdd</code> mutation) if the line does not yet exist and quantity is positive (defensive create-on-update).</li>
+</ul>
+<p>3. The server action then calls <code>updateTag(TAGS.cart)</code> to invalidate the cache.</p>
+<p>4. The client <code>CartProvider</code> reducer also performs the equivalent transformation locally for instant feedback (<code>updateCartItem</code> with <code>updateType: &quot;plus&quot; | &quot;minus&quot;</code>).</p>
+<p><strong>Outcome.</strong> Shoppers adjust their cart contents in real time with consistent server-side persistence.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>components/cart/edit-item-quantity-button.tsx</code>.</li>
+<li><code>components/cart/cart-context.tsx</code> — <code>updateCartItem</code>.</li>
+<li><code>components/cart/actions.ts</code> — <code>updateItemQuantity</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>removeFromCart</code>, <code>updateCart</code>, <code>addToCart</code>.</li>
+<li><code>lib/shopify/mutations/cart.ts</code>.</li>
+</ul>
+<h3>3.4 Remove Line Item</h3>
+<p><strong>Capability.</strong> Shoppers can remove a line from the cart via a dedicated delete control.</p>
+<p><strong>Workflow.</strong> The <code>DeleteItemButton</code> invokes the <code>removeItem</code> server action:</p>
+<p>1. The action loads the cart and locates the line by <code>merchandiseId</code>.</p>
+<p>2. It calls <code>removeFromCart([lineItem.id])</code> and then <code>updateTag(TAGS.cart)</code>.</p>
+<p>3. The client reducer also drops the line via <code>updateCartItem(item, &quot;delete&quot;)</code> for immediate UI feedback.</p>
+<p><strong>Outcome.</strong> Items can be removed with a single click; the cart is persisted to Shopify and the cache is invalidated for the next read.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>components/cart/delete-item-button.tsx</code>.</li>
+<li><code>components/cart/cart-context.tsx</code> (delete handling).</li>
+<li><code>components/cart/actions.ts</code> — <code>removeItem</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>removeFromCart</code>.</li>
+</ul>
+<h3>3.5 Checkout Handoff</h3>
+<p><strong>Capability.</strong> Shoppers proceed to Shopify-hosted checkout from the cart modal with a single click.</p>
+<p><strong>Workflow.</strong> The cart modal&#x27;s &quot;Proceed to Checkout&quot; button calls the <code>redirectToCheckout</code> server action, which:</p>
+<p>1. Reads the current cart through <code>getCart()</code>.</p>
+<p>2. Calls Next.js <code>redirect(cart.checkoutUrl)</code>, sending the browser to the Shopify-hosted checkout for the active cart.</p>
+<p><strong>Outcome.</strong> The shopper is handed off to Shopify&#x27;s checkout, with cart state preserved through the Storefront API&#x27;s <code>checkoutUrl</code>.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>components/cart/modal.tsx</code> (call site for <code>redirectToCheckout</code>).</li>
+<li><code>components/cart/actions.ts</code> — <code>redirectToCheckout</code>.</li>
+<li><code>lib/shopify/fragments/cart.ts</code> (exposes <code>checkoutUrl</code> on the cart).</li>
+</ul>
+<p>---</p>
+<h2>4. Site Information Architecture and SEO</h2>
+<h3>4.1 Sitemap Generation</h3>
+<p><strong>Capability.</strong> A dynamically generated sitemap is exposed at <code>/sitemap.xml</code> covering the home page, all visible collections, all products, and all Shopify pages.</p>
+<p><strong>Workflow.</strong> <code>app/sitemap.ts</code> declares <code>dynamic = &quot;force-dynamic&quot;</code> (so the response is regenerated on each request):</p>
+<p>1. The home page is added with the current timestamp.</p>
+<p>2. <code>getCollections()</code> produces a route per collection, using each collection&#x27;s <code>updatedAt</code>.</p>
+<p>3. <code>getProducts({})</code> produces a route per product handle.</p>
+<p>4. <code>getPages()</code> produces a route per Shopify page handle.</p>
+<p>5. If any of the three calls fail, the error is logged via <code>JSON.stringify(error, null, 2)</code> and rethrown.</p>
+<p>6. <code>validateEnvironmentVariables()</code> is called first; in a non-configured environment, this throws before any fetch attempt, so a missing <code>SHOPIFY_STORE_DOMAIN</code> would fail the sitemap route.</p>
+<p><strong>Outcome.</strong> Search engines can discover every product, collection, and content page via a single canonical document.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong> <code>app/sitemap.ts</code>; <code>lib/utils.ts</code> for <code>validateEnvironmentVariables</code> and <code>baseUrl</code>.</p>
+<h3>4.2 Robots Configuration</h3>
+<p><strong>Capability.</strong> The site exposes a <code>/robots.txt</code> that points crawlers to the sitemap and the canonical host.</p>
+<p><strong>Workflow.</strong> <code>app/robots.ts</code> returns a ruleset allowing all user agents and declaring the sitemap URL and host derived from <code>baseUrl</code>.</p>
+<p><strong>Outcome.</strong> Web crawlers receive authoritative directives for crawling and discovery.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong> <code>app/robots.ts</code>.</p>
+<h3>4.3 OpenGraph Image Generation</h3>
+<p><strong>Capability.</strong> The application generates OpenGraph images on demand for marketing-style previews of the home, generic content pages, and collection pages.</p>
+<p><strong>Workflow.</strong> Each route pair that needs social previews uses Next.js&#x27;s opengraph-image conventions:</p>
+<ul>
+<li><code>app/opengraph-image.tsx</code> and <code>app/[page]/opengraph-image.tsx</code> produce a per-handle image for the home and content routes.</li>
+<li><code>app/search/[collection]/opengraph-image.tsx</code> produces one for collection pages.</li>
+</ul>
+<p><strong>Outcome.</strong> Sharing routes to the site (home, page, or collection) yields rich previews in social platforms.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong> <code>app/opengraph-image.tsx</code>, <code>app/[page]/opengraph-image.tsx</code>, <code>app/search/[collection]/opengraph-image.tsx</code>, and the shared <code>components/opengraph-image.tsx</code>.</p>
+<p>---</p>
+<h2>5. Operator-Facing and Integration Capabilities</h2>
+<h3>5.1 Shopify Webhook Revalidation</h3>
+<p><strong>Capability.</strong> The application exposes a single HTTP endpoint that accepts Shopify webhooks for collection and product lifecycle events and triggers on-demand revalidation of the corresponding cache tags.</p>
+<p><strong>Workflow.</strong> <code>app/api/revalidate/route.ts</code> (POST) delegates to <code>revalidate(req)</code> in <code>lib/shopify</code>:</p>
+<p>1. The handler reads the <code>x-shopify-topic</code> header and a <code>secret</code> query parameter.</p>
+<p>2. If <code>secret</code> is missing or does not match <code>SHOPIFY_REVALIDATION_SECRET</code>, the endpoint returns <code>401</code>.</p>
+<p>3. The supported topics are <code>collections/create</code>, <code>collections/delete</code>, <code>collections/update</code>, <code>products/create</code>, <code>products/delete</code>, <code>products/update</code>. Any other topic short-circuits with <code>200</code> (Shopify requires 2xx or it retries).</p>
+<p>4. On a collection topic, <code>revalidateTag(TAGS.collections, &quot;seconds&quot;)</code> is called.</p>
+<p>5. On a product topic, <code>revalidateTag(TAGS.products, &quot;seconds&quot;)</code> is called.</p>
+<p>6. The response is always <code>200</code> with <code>{ revalidated: true, now: Date.now() }</code>.</p>
+<p><strong>Outcome.</strong> When the merchant updates products or collections in Shopify, the next storefront render reads fresh data; no full redeploy is required. The endpoint is explicitly internal and protected by a shared secret.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong></p>
+<ul>
+<li><code>app/api/revalidate/route.ts</code>.</li>
+<li><code>lib/shopify/index.ts</code> — <code>revalidate</code>.</li>
+<li><code>lib/constants.ts</code> — <code>TAGS.collections</code>, <code>TAGS.products</code>.</li>
+</ul>
+<h3>5.2 Cache Management</h3>
+<p><strong>Capability.</strong> All read paths in the Shopify client use Next.js&#x27;s <code>unstable_cacheLife</code> / <code>unstable_cacheTag</code> primitives, with per-resource lifetimes and tags. Cart state uses private cache; everything else uses shared cache.</p>
+<p><strong>Workflow.</strong> Each function in <code>lib/shopify/index.ts</code> declares its caching policy:</p>
+<ul>
+<li><code>getCart</code>: <code>&quot;use cache: private&quot;</code>, tagged <code>cart</code>, lifetime <code>seconds</code>.</li>
+<li><code>getCollection</code>, <code>getCollections</code>, <code>getMenu</code>: shared cache, tagged <code>collections</code>, lifetime <code>days</code>.</li>
+<li><code>getCollectionProducts</code>, <code>getProduct</code>, <code>getProductRecommendations</code>, <code>getProducts</code>: shared cache, tagged <code>products</code> (and <code>collections</code> where appropriate), lifetime <code>days</code>.</li>
+<li>Server actions that mutate cart state call <code>updateTag(TAGS/cart)</code> so the next read re-fetches.</li>
+<li>The revalidation webhook calls <code>revalidateTag(...)</code> for <code>collections</code> and <code>products</code> with a <code>seconds</code> lifetime override.</li>
+</ul>
+<p><strong>Outcome.</strong> The storefront benefits from aggressive edge caching for catalog data while still allowing merchants to push near-real-time updates and keeping per-user cart state isolated.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence.</strong> All function bodies in <code>lib/shopify/index.ts</code>; <code>components/cart/actions.ts</code> for <code>updateTag</code> calls; <code>lib/constants.ts</code> for the <code>TAGS</code> registry.</p>
+<h3>5.3 Graceful Operation When Shopify Is Not Configured</h3>
+<p><strong>Capability.</strong> When <code>SHOPIFY_STORE_DOMAIN</code> is missing, the application does not crash; instead, certain data fetchers return safe fallbacks so the surrounding UI can render.</p>
+<p><strong>Workflow.</strong> The <code>lib/shopify</code> functions check for the presence of the configured endpoint:</p>
+<ul>
+<li><code>getCollections</code> returns a single synthetic &quot;All&quot; collection entry pointing to <code>/search</code>.</li>
+<li><code>getCollectionProducts</code> and <code>getProduct</code> log a skip message and return an empty array / <code>undefined</code>.</li>
+<li><code>getMenu</code> returns an empty array.</li>
+</ul>
+<p>Several UI affordances rely on these fallbacks: the navbar omits its menu block, the homepage <code>ThreeItemGrid</code> and <code>Carousel</code> return <code>null</code>, and the cart modal will create a cart on first interaction.</p>
+<p><strong>Outcome.</strong> The codebase can be deployed in a non-configured state without throwing, although the corresponding features are not usable. The <code>validateEnvironmentVariables</code> utility is also available to surface misconfiguration explicitly when desired (used by the sitemap route).</p>
+<p><strong>Status.</strong> Partially implemented — defensive fallbacks exist, but meaningful functionality (products, collections, menus) is not available without Shopify credentials.</p>
+<p><strong>Evidence.</strong> Empty-endpoint guards in <code>lib/shopify/index.ts</code> (<code>getCollections</code>, <code>getCollectionProducts</code>, <code>getProduct</code>, <code>getMenu</code>); <code>lib/utils.ts</code> for <code>validateEnvironmentVariables</code>; consumers such as <code>components/grid/three-items.tsx</code> and <code>components/carousel.tsx</code> that early-return <code>null</code> on empty data.</p>
+<p>---</p>
+<h2>6. Cross-Cutting and Presentation Behaviors</h2>
+<h3>6.1 Global Cart Context and Toaster</h3>
+<p><strong>Capability.</strong> A global <code>CartProvider</code> wraps every page in <code>app/layout.tsx</code>, alongside a <code>Toaster</code> (from <code>sonner</code>) and a <code>WelcomeToast</code> that surfaces a one-time welcome message to first-time visitors.</p>
+<p><strong>Workflow.</strong> The root layout:</p>
+<p>1. Initiates a non-awaited <code>getCart()</code> Promise and passes it to <code>CartProvider</code>, so children can read cart state without blocking the page.</p>
+<p>2. Renders the navbar, page content, the global <code>Toaster</code>, and the <code>WelcomeToast</code>.</p>
+<p>3. The <code>WelcomeToast</code> reads a <code>welcome-toast</code> cookie; if it is not set to <code>2</code> and the viewport is at least 650px tall, it shows a one-time <code>sonner</code> toast pointing to the Vercel template. Dismissing the toast sets a year-long cookie so it never appears again.</p>
+<p><strong>Outcome.</strong> Cart state, transient notifications, and onboarding messaging are available site-wide without per-page plumbing.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence:</strong> <code>app/layout.tsx</code>, <code>components/welcome-toast.tsx</code>, <code>components/cart/cart-context.tsx</code>.</p>
+<h3>6.2 Responsive Navigation and Footer</h3>
+<p><strong>Capability.</strong> The storefront renders a header and footer that adapt to viewport size, with a mobile menu on narrow screens and a desktop navbar with logo, primary navigation, search bar, and cart trigger on wider screens.</p>
+<p><strong>Workflow.</strong> The <code>Navbar</code> composes a <code>LogoSquare</code> and <code>SITE_NAME</code>, a list of menu items, a centered <code>Search</code> input (with a <code>SearchSkeleton</code> fallback during Suspense), and a <code>CartModal</code> trigger. On viewports below the <code>md</code> breakpoint, the desktop menu is replaced by a <code>MobileMenu</code> headless-ui dialog. The <code>Footer</code> mirrors the brand mark and renders the footer menu plus a &quot;Deploy on Vercel&quot; badge.</p>
+<p><strong>Outcome.</strong> Shoppers can navigate the site on both desktop and mobile, with cart and search consistently available.</p>
+<p><strong>Status.</strong> Implemented.</p>
+<p><strong>Evidence:</strong> <code>components/layout/navbar/index.tsx</code>, <code>components/layout/navbar/mobile-menu.tsx</code>, <code>components/layout/navbar/search.tsx</code>, <code>components/layout/footer.tsx</code>, <code>components/layout/footer-menu.tsx</code>.</p>
+<h3>6.3 Home Page, Search, and Product Pages Share a Common Visual Vocabulary</h3>
+<p><strong>Capability.</strong> Product tiles, grids, and pricing are factored into shared components so that the homepage, search results, collection pages, and related-products strip render consistently.</p>
+<p><strong>Workflow:</strong> Reusable presentation primitives include:</p>
+<ul>
+<li><code>Grid</code> and <code>GridTileImage</code> for tile layouts.</li>
+<li><code>ProductGridItems</code> to map product arrays to tile rows.</li>
+<li><code>Price</code> for localized money formatting.</li>
+<li><code>Prose</code> for rendering trusted HTML (used on product descriptions and Shopify pages).</li>
+<li><code>LoadingDots</code> and the <code>SearchSkeleton</code> for Suspense fallbacks.</li>
+</ul>
+<p><strong>Outcome.</strong> The site presents a uniform visual language without duplicating layout logic across pages.</p>
+<p><strong>Status:</strong> Implemented.</p>
+<p><strong>Evidence:</strong> <code>components/grid/index.tsx</code>, <code>components/grid/tile.tsx</code>, <code>components/layout/product-grid-items.tsx</code>, <code>components/price.tsx</code>, <code>components/prose.tsx</code>, <code>components/loading-dots.tsx</code>.</p>
+<p>---</p>
+<h2>7. Implementation Status Summary</h2>
+<table><tbody>
+<tr><td>Capability</td><td>Status</td><td>Notes</td></tr>
+<tr><td>Home page curation (featured grid + carousel)</td><td>Implemented</td><td>Depends on <code>hidden-homepage-featured-items</code> and <code>hidden-homepage-carousel</code> Shopify collections.</td></tr>
+<tr><td>Search and free-text querying</td><td>Implemented</td><td>Five sort options, layout-driven facet sidebar.</td></tr>
+<tr><td>Collection browsing</td><td>Implemented</td><td>Hidden-prefixed collections filtered out of the public facet.</td></tr>
+<tr><td>Shopify content pages</td><td>Implemented</td><td>Reachable at <code>/{handle}</code>; 404 via <code>notFound()</code>.</td></tr>
+<tr><td>Menu-driven navigation</td><td>Implemented</td><td>Header and footer menus; URL rewriting for <code>/collections</code> and <code>/pages</code>.</td></tr>
+<tr><td>Product detail page</td><td>Implemented</td><td>JSON-LD, conditional <code>robots</code>, related products, hidden-tag handling.</td></tr>
+<tr><td>Product image gallery</td><td>Implemented</td><td>URL-state based, up to 5 images.</td></tr>
+<tr><td>Variant selection</td><td>Implemented</td><td>URL-state based, disabled out-of-stock values.</td></tr>
+<tr><td>Cart lifecycle (create, get, cookie)</td><td>Implemented</td><td>Private cache per user; stale cookies tolerated.</td></tr>
+<tr><td>Add to cart with optimistic update</td><td>Implemented</td><td>Server action + client reducer.</td></tr>
+<tr><td>Edit line item quantity</td><td>Implemented</td><td>Quantity zero falls through to remove.</td></tr>
+<tr><td>Remove line item</td><td>Implemented</td><td>Optimistic and authoritative.</td></tr>
+<tr><td>Checkout handoff</td><td>Implemented</td><td>Redirects to Shopify <code>checkoutUrl</code>.</td></tr>
+<tr><td>Sitemap generation</td><td>Implemented</td><td>Aggregates collections, products, pages.</td></tr>
+<tr><td>Robots configuration</td><td>Implemented</td><td>All user agents, references sitemap.</td></tr>
+<tr><td>OpenGraph image generation</td><td>Implemented</td><td>Home, content, and collection routes.</td></tr>
+<tr><td>Shopify webhook revalidation</td><td>Implemented</td><td><code>collections/<em></code> and <code>products/</em></code> topics, shared secret.</td></tr>
+<tr><td>Cache management</td><td>Implemented</td><td>Per-resource tags and lifetimes; revalidation hooks.</td></tr>
+<tr><td>Defensive fallbacks when Shopify is not configured</td><td>Partially implemented</td><td>Lists fall back to &quot;All&quot;; no product detail, recommendations, or menu.</td></tr>
+<tr><td>Authentication, accounts, wishlists, order history</td><td>Apparently not implemented</td><td>Not present in the codebase.</td></tr>
+<tr><td>Customer login / account area</td><td>Apparently not implemented</td><td>Not present in the codebase.</td></tr>
+<tr><td>Internationalization / multi-currency selection</td><td>Apparently not implemented</td><td>No locale routing; prices and copy come from Shopify directly.</td></tr>
+<tr><td>Inventory display beyond availability flag</td><td>Apparently not implemented</td><td>The <code>availableForSale</code> flag is surfaced; no quantity-based inventory UI.</td></tr>
+<tr><td>Coupon / discount entry</td><td>Apparently not implemented</td><td>Not present in the codebase.</td></tr>
+<tr><td>Tax/shipping estimation in cart</td><td>Apparently not implemented</td><td>The cart fragment requests <code>totalTaxAmount</code>; no estimator UI is wired.</td></tr>
+<tr><td>Real user-side persistent profile (login)</td><td>Apparently not implemented</td><td>Cart is per-cookie and unauthenticated.</td></tr>
+</tbody></table>
+</main>
+</body>
+</html>

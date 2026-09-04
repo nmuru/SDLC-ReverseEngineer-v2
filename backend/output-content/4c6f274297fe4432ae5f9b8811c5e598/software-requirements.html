@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>software-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Software Requirements Analysis</h1>
+<h2>Next.js Commerce (Shopify Edition)</h2>
+<p>---</p>
+<h2>Executive Summary</h2>
+<p>This repository implements <strong>Next.js Commerce</strong> — a high-performance, server-rendered ecommerce storefront template built on Next.js 15 (App Router), React 19, TypeScript, and Tailwind CSS 4. It integrates with <strong>Shopify</strong> as a headless commerce backend via the Shopify Storefront GraphQL API. The system is designed for deployment on Vercel with support for incremental static regeneration, React Server Components, Server Actions, and optimistic UI updates.</p>
+<p>---</p>
+<h2>1. Functional Requirements</h2>
+<h3>1.1 Product Discovery &amp; Browsing</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-1.1</td><td>The system shall display a homepage featuring a configurable hero grid of featured products and a horizontally scrolling carousel of products.</td><td><code>app/page.tsx</code> renders <code>ThreeItemGrid</code> (fetches from <code>hidden-homepage-featured-items</code> collection) and <code>Carousel</code> (fetches from <code>hidden-homepage-carousel</code> collection)</td><td>Verified</td></tr>
+<tr><td>FR-1.2</td><td>The system shall provide a search interface allowing users to search products by keyword with real-time results.</td><td><code>app/search/page.tsx</code> accepts <code>q</code> query param, calls <code>getProducts({ query: searchValue })</code></td><td>Verified</td></tr>
+<tr><td>FR-1.3</td><td>The system shall display products in a paginated grid with configurable sort order (Relevance, Trending, Latest, Price Low-High, Price High-Low).</td><td><code>app/search/page.tsx</code> and <code>app/search/[collection]/page.tsx</code> use <code>sorting</code> constants; <code>ProductGridItems</code> renders grid</td><td>Verified</td></tr>
+<tr><td>FR-1.4</td><td>The system shall allow browsing products by collection with collection-specific product listings.</td><td><code>app/search/[collection]/page.tsx</code> calls <code>getCollectionProducts({ collection, sortKey, reverse })</code></td><td>Verified</td></tr>
+<tr><td>FR-1.5</td><td>The system shall display individual product detail pages with title, description, price range, image gallery, variant selection, and add-to-cart action.</td><td><code>app/product/[handle]/page.tsx</code> fetches product via <code>getProduct(handle)</code>, renders <code>Gallery</code>, <code>VariantSelector</code>, <code>AddToCart</code></td><td>Verified</td></tr>
+<tr><td>FR-1.6</td><td>The system shall display related product recommendations on product detail pages.</td><td><code>RelatedProducts</code> component in <code>app/product/[handle]/page.tsx</code> calls <code>getProductRecommendations(id)</code></td><td>Verified</td></tr>
+<tr><td>FR-1.7</td><td>The system shall support filtering products by collection via a sidebar navigation.</td><td><code>components/layout/search/collections.tsx</code> fetches collections via <code>getCollections()</code>, renders <code>FilterList</code> with collection paths</td><td>Verified</td></tr>
+<tr><td>FR-1.8</td><td>The system shall render static content pages (e.g., About, Contact) fetched from Shopify Pages.</td><td><code>app/[page]/page.tsx</code> calls <code>getPage(handle)</code> and renders body HTML via <code>Prose</code> component</td><td>Verified</td></tr>
+</tbody></table>
+<h3>1.2 Shopping Cart Management</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-2.1</td><td>The system shall maintain a persistent shopping cart associated with an anonymous session via a <code>cartId</code> cookie.</td><td><code>lib/shopify/index.ts</code>: <code>createCart()</code>, <code>getCart()</code> reads <code>cartId</code> from cookies; <code>CartProvider</code> passes cart promise</td><td>Verified</td></tr>
+<tr><td>FR-2.2</td><td>The system shall allow adding a product variant to the cart with quantity 1 via an &quot;Add to Cart&quot; action.</td><td><code>components/cart/add-to-cart.tsx</code> calls <code>addCartItem</code> (optimistic) and <code>addItem</code> server action; <code>lib/shopify/index.ts</code> <code>addToCart()</code> mutation</td><td>Verified</td></tr>
+<tr><td>FR-2.3</td><td>The system shall allow incrementing, decrementing, and removing line items from the cart.</td><td><code>components/cart/edit-item-quantity-button.tsx</code> and <code>delete-item-button.tsx</code> call <code>updateItemQuantity</code> / <code>removeItem</code> server actions with optimistic updates</td><td>Verified</td></tr>
+<tr><td>FR-2.4</td><td>The system shall display the cart in a slide-over modal showing line items, quantities, per-line pricing, subtotal, tax (placeholder), shipping notice, and total.</td><td><code>components/cart/modal.tsx</code> renders cart lines with <code>Price</code>, <code>EditItemQuantityButton</code>, <code>DeleteItemButton</code>, and totals</td><td>Verified</td></tr>
+<tr><td>FR-2.5</td><td>The system shall optimistically update the cart UI before server confirmation, with rollback on error.</td><td><code>components/cart/cart-context.tsx</code> uses <code>useOptimistic</code> with <code>cartReducer</code> for <code>ADD_ITEM</code>/<code>UPDATE_ITEM</code> actions</td><td>Verified</td></tr>
+<tr><td>FR-2.6</td><td>The system shall redirect the user to Shopify&#x27;s hosted checkout when proceeding to checkout.</td><td><code>components/cart/actions.ts</code> <code>redirectToCheckout()</code> calls <code>getCart()</code> then <code>redirect(cart.checkoutUrl)</code></td><td>Verified</td></tr>
+<tr><td>FR-2.7</td><td>The system shall automatically create a cart and set the <code>cartId</code> cookie when the cart modal opens and no cart exists.</td><td><code>components/cart/modal.tsx</code> <code>useEffect</code> calls <code>createCartAndSetCookie()</code> when <code>!cart</code></td><td>Verified</td></tr>
+<tr><td>FR-2.8</td><td>The system shall auto-open the cart modal when an item is successfully added.</td><td><code>components/cart/modal.tsx</code> <code>useEffect</code> watches <code>cart.totalQuantity</code> and opens modal when it increases</td><td>Verified</td></tr>
+</tbody></table>
+<h3>1.3 Product Variant Selection</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-3.1</td><td>The system shall present product options (e.g., Size, Color) as selectable buttons, preserving other option selections in the URL.</td><td><code>components/product/variant-selector.tsx</code> reads/writes option values via <code>useSearchParams</code> and <code>router.replace()</code></td><td>Verified</td></tr>
+<tr><td>FR-3.2</td><td>The system shall disable unavailable variant combinations and visually indicate out-of-stock options.</td><td><code>VariantSelector</code> computes <code>isAvailableForSale</code> by matching current option combination against <code>combinations</code> array; renders disabled with strikethrough style</td><td>Verified</td></tr>
+<tr><td>FR-3.3</td><td>The system shall pre-select the default variant when only one variant exists or no options are defined.</td><td><code>VariantSelector</code> returns <code>null</code> for <code>hasNoOptionsOrJustOneOption</code>; <code>AddToCart</code> falls back to <code>defaultVariantId</code></td><td>Verified</td></tr>
+<tr><td>FR-3.4</td><td>The system shall update the &quot;Add to Cart&quot; button state (enabled/disabled/label) based on selected variant availability.</td><td><code>components/cart/add-to-cart.tsx</code> <code>SubmitButton</code> shows &quot;Out Of Stock&quot;, &quot;Add To Cart&quot;, or &quot;Please select an option&quot; based on <code>availableForSale</code> and <code>selectedVariantId</code></td><td>Verified</td></tr>
+</tbody></table>
+<h3>1.4 Navigation &amp; Menus</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-4.1</td><td>The system shall render a responsive header with logo, navigation menu (desktop), search input (desktop), and cart button.</td><td><code>components/layout/navbar/index.tsx</code> renders <code>LogoSquare</code>, menu links from <code>getMenu(&#x27;next-js-frontend-header-menu&#x27;)</code>, <code>Search</code>, <code>CartModal</code></td><td>Verified</td></tr>
+<tr><td>FR-4.2</td><td>The system shall provide a mobile-responsive drawer menu with search and navigation links.</td><td><code>components/layout/navbar/mobile-menu.tsx</code> uses <code>@headlessui/react</code> <code>Dialog</code>/<code>Transition</code> for slide-in panel</td><td>Verified</td></tr>
+<tr><td>FR-4.3</td><td>The system shall render a footer with menu links, copyright notice, and Vercel deployment link.</td><td><code>components/layout/footer.tsx</code> fetches <code>getMenu(&#x27;next-js-frontend-footer-menu&#x27;)</code>, renders <code>FooterMenu</code></td><td>Verified</td></tr>
+<tr><td>FR-4.4</td><td>The system shall highlight the active menu item in the footer based on current route.</td><td><code>components/layout/footer-menu.tsx</code> <code>FooterMenuItem</code> uses <code>usePathname()</code> to set <code>active</code> state</td><td>Verified</td></tr>
+</tbody></table>
+<h3>1.5 SEO &amp; Metadata</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-5.1</td><td>The system shall generate dynamic page metadata (title, description, Open Graph) for product, collection, search, and content pages.</td><td><code>generateMetadata</code> exports in <code>app/product/[handle]/page.tsx</code>, <code>app/search/[collection]/page.tsx</code>, <code>app/[page]/page.tsx</code></td><td>Verified</td></tr>
+<tr><td>FR-5.2</td><td>The system shall include JSON-LD structured data (Product schema) on product detail pages.</td><td><code>app/product/[handle]/page.tsx</code> renders <code>&lt;script type=&quot;application/ld+json&quot;&gt;</code> with <code>@type: Product</code> and <code>AggregateOffer</code></td><td>Verified</td></tr>
+<tr><td>FR-5.3</td><td>The system shall generate a sitemap.xml including homepage, all collections, all products, and all pages with last-modified dates.</td><td><code>app/sitemap.ts</code> calls <code>getCollections()</code>, <code>getProducts()</code>, <code>getPages()</code> and returns <code>MetadataRoute.Sitemap</code></td><td>Verified</td></tr>
+<tr><td>FR-5.4</td><td>The system shall generate a robots.txt allowing all crawlers and referencing the sitemap.</td><td><code>app/robots.ts</code> returns rules with <code>sitemap: ${baseUrl}/sitemap.xml</code></td><td>Verified</td></tr>
+<tr><td>FR-5.5</td><td>The system shall generate dynamic Open Graph images for product, collection, and content pages using Next.js ImageResponse.</td><td><code>app/product/[handle]/opengraph-image.tsx</code>, <code>app/search/[collection]/opengraph-image.tsx</code>, <code>app/[page]/opengraph-image.tsx</code></td><td>Verified</td></tr>
+<tr><td>FR-5.6</td><td>The system shall respect the <code>nextjs-frontend-hidden</code> product tag to exclude products from search/indexing while allowing direct access.</td><td><code>lib/shopify/index.ts</code> <code>reshapeProduct()</code> filters by <code>HIDDEN_PRODUCT_TAG</code>; <code>generateMetadata</code> sets <code>robots.index/follow</code> to false for hidden products</td><td>Verified</td></tr>
+</tbody></table>
+<h3>1.6 Content Revalidation</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-6.1</td><td>The system shall accept Shopify webhook callbacks to trigger on-demand revalidation of product and collection cache tags.</td><td><code>app/api/revalidate/route.ts</code> POST handler calls <code>lib/shopify/index.ts</code> <code>revalidate()</code> function</td><td>Verified</td></tr>
+<tr><td>FR-6.2</td><td>The system shall verify a shared secret (<code>SHOPIFY_REVALIDATION_SECRET</code>) before performing revalidation.</td><td><code>revalidate()</code> checks <code>secret</code> query param against <code>process.env.SHOPIFY_REVALIDATION_SECRET</code></td><td>Verified</td></tr>
+<tr><td>FR-6.3</td><td>The system shall revalidate the <code>collections</code> cache tag for collection create/delete/update webhooks and <code>products</code> tag for product webhooks.</td><td><code>revalidate()</code> inspects <code>x-shopify-topic</code> header and calls <code>revalidateTag(TAGS.collections)</code> or <code>revalidateTag(TAGS.products)</code></td><td>Verified</td></tr>
+</tbody></table>
+<h3>1.7 User Experience Enhancements</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>FR-7.1</td><td>The system shall display a dismissible welcome toast on first visit (persisted via cookie for 1 year).</td><td><code>components/welcome-toast.tsx</code> checks <code>document.cookie</code> for <code>welcome-toast=2</code>, shows <code>sonner</code> toast with deploy link</td><td>Verified</td></tr>
+<tr><td>FR-7.2</td><td>The system shall support dark mode via CSS media query with Tailwind <code>dark:</code> variants throughout.</td><td><code>app/globals.css</code> <code>@media (prefers-color-scheme: dark)</code> sets <code>color-scheme: dark</code>; all components use <code>dark:</code> classes</td><td>Verified</td></tr>
+<tr><td>FR-7.3</td><td>The system shall provide loading skeletons for async content (search, collections, product grid, cart).</td><td><code>app/search/loading.tsx</code>, <code>components/layout/search/collections.tsx</code> skeleton, <code>components/layout/navbar/search.tsx</code> <code>SearchSkeleton</code></td><td>Verified</td></tr>
+<tr><td>FR-7.4</td><td>The system shall display a user-friendly error boundary with retry action.</td><td><code>app/error.tsx</code> renders &quot;Oh no!&quot; message with &quot;Try Again&quot; button calling <code>reset()</code></td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>2. Business &amp; Domain Rules</h2>
+<table><tbody>
+<tr><td>ID</td><td>Rule</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>BR-1</td><td>Products tagged with <code>nextjs-frontend-hidden</code> in Shopify are excluded from search results, collection listings, and sitemap, but remain accessible via direct URL.</td><td><code>lib/constants.ts</code> <code>HIDDEN_PRODUCT_TAG</code>; <code>lib/shopify/index.ts</code> <code>reshapeProduct(filterHiddenProducts=true)</code>; <code>getCollections()</code> filters collections with handle starting with <code>hidden-</code></td><td>Verified</td></tr>
+<tr><td>BR-2</td><td>Collections with handles starting with <code>hidden-</code> are excluded from the search page navigation but used for homepage content (featured items, carousel).</td><td><code>lib/shopify/index.ts</code> <code>getCollections()</code> filters <code>!collection.handle.startsWith(&#x27;hidden&#x27;)</code>; <code>ThreeItemGrid</code> and <code>Carousel</code> explicitly query <code>hidden-homepage-featured-items</code> and <code>hidden-homepage-carousel</code></td><td>Verified</td></tr>
+<tr><td>BR-3</td><td>A cart is created lazily on first interaction (opening cart modal or adding first item) and persisted via <code>cartId</code> cookie.</td><td><code>components/cart/modal.tsx</code> <code>useEffect</code> calls <code>createCartAndSetCookie()</code>; <code>lib/shopify/index.ts</code> <code>createCart()</code> mutation</td><td>Verified</td></tr>
+<tr><td>BR-4</td><td>Cart line quantities cannot go below 1; decrementing to 0 removes the line item.</td><td><code>lib/shopify/index.ts</code> <code>updateCartItem()</code> returns <code>null</code> when <code>newQuantity === 0</code>; <code>actions.ts</code> <code>updateItemQuantity</code> calls <code>removeFromCart</code> when quantity === 0</td><td>Verified</td></tr>
+<tr><td>BR-5</td><td>Product variant selection is constrained to valid, available-for-sale combinations only.</td><td><code>VariantSelector</code> computes <code>combinations</code> from variants and checks <code>filtered.every(...combination.availableForSale)</code></td><td>Verified</td></tr>
+<tr><td>BR-6</td><td>The &quot;All&quot; collection (handle=&quot;&quot;) is a synthetic collection representing all products, always listed first in the collection filter.</td><td><code>lib/shopify/index.ts</code> <code>getCollections()</code> prepends <code>{ handle: &#x27;&#x27;, title: &#x27;All&#x27;, path: &#x27;/search&#x27;, ... }</code></td><td>Verified</td></tr>
+<tr><td>BR-7</td><td>Price display uses the store&#x27;s currency code with narrow symbol formatting via <code>Intl.NumberFormat</code>.</td><td><code>components/price.tsx</code> uses <code>new Intl.NumberFormat(undefined, { style: &#x27;currency&#x27;, currency: currencyCode, currencyDisplay: &#x27;narrowSymbol&#x27; })</code></td><td>Verified</td></tr>
+<tr><td>BR-8</td><td>Tax amount is not calculated client-side; the system displays a placeholder &quot;Calculated at checkout&quot; for shipping and relies on Shopify checkout for final totals.</td><td><code>components/cart/modal.tsx</code> renders &quot;Shipping: Calculated at checkout&quot;; <code>reshapeCart</code> ensures <code>totalTaxAmount</code> exists (defaults to 0)</td><td>Verified</td></tr>
+<tr><td>BR-9</td><td>Product images are sourced from Shopify CDN (<code>cdn.shopify.com</code>) with AVIF/WebP format optimization.</td><td><code>next.config.ts</code> <code>images.remotePatterns</code> allows <code>cdn.shopify.com/s/files/**</code>; <code>formats: [&#x27;image/avif&#x27;, &#x27;image/webp&#x27;]</code></td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>3. Interface Requirements</h2>
+<h3>3.1 HTTP API (Server Actions &amp; Route Handlers)</h3>
+<table><tbody>
+<tr><td>ID</td><td>Interface</td><td>Contract</td><td>Evidence</td></tr>
+<tr><td>IF-1</td><td><code>POST /api/revalidate</code></td><td><strong>Headers:</strong> <code>x-shopify-topic</code> (required), <code>x-shopify-hmac-sha256</code> (ignored)&lt;br&gt;<strong>Query:</strong> <code>secret</code> (required, must match <code>SHOPIFY_REVALIDATION_SECRET</code>)&lt;br&gt;<strong>Response:</strong> <code>200 { status: 200 }</code> or <code>200 { status: 200, revalidated: true, now: timestamp }</code> or <code>401 { status: 401 }</code></td><td><code>app/api/revalidate/route.ts</code>, <code>lib/shopify/index.ts</code> <code>revalidate()</code></td></tr>
+<tr><td>IF-2</td><td>Server Action <code>addItem(selectedVariantId: string)</code></td><td><strong>Input:</strong> <code>selectedVariantId</code> (required)&lt;br&gt;<strong>Output:</strong> <code>string</code> error message or <code>void</code> (success)&lt;br&gt;<strong>Side effect:</strong> Calls Shopify <code>cartLinesAdd</code>, updates <code>cart</code> cache tag</td><td><code>components/cart/actions.ts</code> <code>addItem()</code></td></tr>
+<tr><td>IF-3</td><td>Server Action <code>removeItem(merchandiseId: string)</code></td><td><strong>Input:</strong> <code>merchandiseId</code> (required)&lt;br&gt;<strong>Output:</strong> <code>string</code> error message or <code>void</code></td><td><code>components/cart/actions.ts</code> <code>removeItem()</code></td></tr>
+<tr><td>IF-4</td><td>Server Action <code>updateItemQuantity({ merchandiseId, quantity })</code></td><td><strong>Input:</strong> <code>merchandiseId</code> (string), <code>quantity</code> (number ≥ 0)&lt;br&gt;<strong>Output:</strong> <code>string</code> error message or <code>void</code>&lt;br&gt;<strong>Behavior:</strong> quantity=0 → remove; item not in cart + quantity&gt;0 → add</td><td><code>components/cart/actions.ts</code> <code>updateItemQuantity()</code></td></tr>
+<tr><td>IF-5</td><td>Server Action <code>redirectToCheckout()</code></td><td><strong>Output:</strong> <code>never</code> (redirects to <code>cart.checkoutUrl</code>)</td><td><code>components/cart/actions.ts</code> <code>redirectToCheckout()</code></td></tr>
+<tr><td>IF-6</td><td>Server Action <code>createCartAndSetCookie()</code></td><td><strong>Side effect:</strong> Creates Shopify cart, sets <code>cartId</code> cookie&lt;br&gt;<strong>Output:</strong> <code>void</code></td><td><code>components/cart/actions.ts</code> <code>createCartAndSetCookie()</code></td></tr>
+</tbody></table>
+<h3>3.2 Shopify Storefront GraphQL API (External Dependency)</h3>
+<table><tbody>
+<tr><td>ID</td><td>Operation</td><td>Purpose</td><td>Evidence</td></tr>
+<tr><td>IF-7</td><td><code>cartCreate</code></td><td>Create new cart</td><td><code>lib/shopify/mutations/cart.ts</code></td></tr>
+<tr><td>IF-8</td><td><code>cartLinesAdd</code></td><td>Add line items to cart</td><td><code>lib/shopify/mutations/cart.ts</code></td></tr>
+<tr><td>IF-9</td><td><code>cartLinesUpdate</code></td><td>Update line item quantities</td><td><code>lib/shopify/mutations/cart.ts</code></td></tr>
+<tr><td>IF-10</td><td><code>cartLinesRemove</code></td><td>Remove line items from cart</td><td><code>lib/shopify/mutations/cart.ts</code></td></tr>
+<tr><td>IF-11</td><td><code>cart(id: ID!)</code></td><td>Fetch cart by ID</td><td><code>lib/shopify/queries/cart.ts</code></td></tr>
+<tr><td>IF-12</td><td><code>product(handle: String!)</code></td><td>Fetch single product by handle</td><td><code>lib/shopify/queries/product.ts</code></td></tr>
+<tr><td>IF-13</td><td><code>products(sortKey, reverse, query, first: 100)</code></td><td>Search/list products</td><td><code>lib/shopify/queries/product.ts</code></td></tr>
+<tr><td>IF-14</td><td><code>productRecommendations(productId: ID!)</code></td><td>Fetch related products</td><td><code>lib/shopify/queries/product.ts</code></td></tr>
+<tr><td>IF-15</td><td><code>collection(handle: String!)</code></td><td>Fetch collection by handle</td><td><code>lib/shopify/queries/collection.ts</code></td></tr>
+<tr><td>IF-16</td><td><code>collections(first: 100, sortKey: TITLE)</code></td><td>List all collections</td><td><code>lib/shopify/queries/collection.ts</code></td></tr>
+<tr><td>IF-17</td><td><code>collection.products(sortKey, reverse, first: 100)</code></td><td>Fetch products in collection</td><td><code>lib/shopify/queries/collection.ts</code></td></tr>
+<tr><td>IF-18</td><td><code>menu(handle: String!)</code></td><td>Fetch navigation menu by handle</td><td><code>lib/shopify/queries/menu.ts</code></td></tr>
+<tr><td>IF-19</td><td><code>pageByHandle(handle: String!)</code></td><td>Fetch page by handle</td><td><code>lib/shopify/queries/page.ts</code></td></tr>
+<tr><td>IF-20</td><td><code>pages(first: 100)</code></td><td>List all pages</td><td><code>lib/shopify/queries/page.ts</code></td></tr>
+</tbody></table>
+<h3>3.3 Client-Side URL Conventions</h3>
+<table><tbody>
+<tr><td>ID</td><td>Route Pattern</td><td>Parameters</td><td>Evidence</td></tr>
+<tr><td>IF-21</td><td><code>/</code></td><td>—</td><td><code>app/page.tsx</code></td></tr>
+<tr><td>IF-22</td><td><code>/search</code></td><td><code>q</code> (search query), <code>sort</code> (sort slug)</td><td><code>app/search/page.tsx</code></td></tr>
+<tr><td>IF-23</td><td><code>/search/[collection]</code></td><td><code>collection</code> (handle), <code>sort</code> (sort slug)</td><td><code>app/search/[collection]/page.tsx</code></td></tr>
+<tr><td>IF-24</td><td><code>/product/[handle]</code></td><td><code>handle</code> (product handle), option query params (e.g., <code>?size=M&amp;color=Red</code>)</td><td><code>app/product/[handle]/page.tsx</code>, <code>VariantSelector</code></td></tr>
+<tr><td>IF-25</td><td><code>/[page]</code></td><td><code>page</code> (page handle)</td><td><code>app/[page]/page.tsx</code></td></tr>
+<tr><td>IF-26</td><td><code>/api/revalidate</code></td><td><code>secret</code> (query)</td><td><code>app/api/revalidate/route.ts</code></td></tr>
+</tbody></table>
+<h3>3.4 Environment Configuration Interface</h3>
+<table><tbody>
+<tr><td>Variable</td><td>Required</td><td>Purpose</td><td>Evidence</td></tr>
+<tr><td><code>SHOPIFY_STORE_DOMAIN</code></td><td>Yes</td><td>Shopify store subdomain (e.g., <code>myshop.myshopify.com</code>)</td><td><code>.env.example</code>, <code>lib/utils.ts</code> <code>validateEnvironmentVariables()</code></td></tr>
+<tr><td><code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code></td><td>Yes</td><td>Storefront API access token (public)</td><td><code>.env.example</code>, <code>lib/utils.ts</code></td></tr>
+<tr><td><code>SHOPIFY_REVALIDATION_SECRET</code></td><td>Yes</td><td>Shared secret for webhook revalidation</td><td><code>.env.example</code>, <code>lib/shopify/index.ts</code> <code>revalidate()</code></td></tr>
+<tr><td><code>COMPANY_NAME</code></td><td>No</td><td>Copyright holder name in footer</td><td><code>.env.example</code>, <code>components/layout/footer.tsx</code></td></tr>
+<tr><td><code>SITE_NAME</code></td><td>Yes</td><td>Site title for metadata, logo, OG</td><td><code>.env.example</code>, <code>app/layout.tsx</code>, <code>components/opengraph-image.tsx</code></td></tr>
+<tr><td><code>VERCEL_PROJECT_PRODUCTION_URL</code></td><td>No (Vercel-injected)</td><td>Base URL for sitemap, robots, OG images</td><td><code>lib/utils.ts</code> <code>baseUrl</code></td></tr>
+</tbody></table>
+<p>---</p>
+<h2>4. Data Requirements</h2>
+<h3>4.1 Core Domain Entities</h3>
+<table><tbody>
+<tr><td>Entity</td><td>Key Attributes</td><td>Source</td><td>Persistence</td></tr>
+<tr><td><strong>Product</strong></td><td><code>id</code>, <code>handle</code>, <code>title</code>, <code>description</code>, <code>descriptionHtml</code>, <code>availableForSale</code>, <code>priceRange</code> (min/max), <code>options[]</code>, <code>variants[]</code>, <code>images[]</code>, <code>featuredImage</code>, <code>seo</code>, <code>tags[]</code>, <code>updatedAt</code></td><td>Shopify GraphQL <code>product</code> fragment</td><td>Shopify (external); cached via Next.js <code>cacheTag(TAGS.products)</code> with <code>cacheLife(&#x27;days&#x27;)</code></td></tr>
+<tr><td><strong>ProductVariant</strong></td><td><code>id</code>, <code>title</code>, <code>availableForSale</code>, <code>selectedOptions[]</code>, <code>price</code></td><td>Shopify GraphQL <code>product</code> fragment</td><td>Shopify</td></tr>
+<tr><td><strong>ProductOption</strong></td><td><code>id</code>, <code>name</code>, <code>values[]</code></td><td>Shopify GraphQL <code>product</code> fragment</td><td>Shopify</td></tr>
+<tr><td><strong>Collection</strong></td><td><code>handle</code>, <code>title</code>, <code>description</code>, <code>seo</code>, <code>updatedAt</code>, <code>path</code> (derived: <code>/search/{handle}</code>)</td><td>Shopify GraphQL <code>collection</code> fragment</td><td>Shopify; cached <code>cacheTag(TAGS.collections)</code> <code>days</code></td></tr>
+<tr><td><strong>Cart</strong></td><td><code>id</code>, <code>checkoutUrl</code>, <code>cost</code> (subtotal, total, tax), <code>lines[]</code>, <code>totalQuantity</code></td><td>Shopify GraphQL <code>cart</code> fragment</td><td>Shopify (server-side); client cookie <code>cartId</code>; cached <code>cacheTag(TAGS.cart)</code> <code>seconds</code> (private)</td></tr>
+<tr><td><strong>CartItem</strong></td><td><code>id</code>, <code>quantity</code>, <code>cost.totalAmount</code>, <code>merchandise</code> (variant + product ref)</td><td>Shopify GraphQL <code>cart</code> fragment</td><td>Shopify</td></tr>
+<tr><td><strong>Menu</strong></td><td><code>title</code>, <code>path</code> (derived from Shopify URL)</td><td>Shopify GraphQL <code>menu</code> query</td><td>Shopify; cached <code>days</code></td></tr>
+<tr><td><strong>Page</strong></td><td><code>id</code>, <code>title</code>, <code>handle</code>, <code>body</code>, <code>bodySummary</code>, <code>seo</code>, <code>createdAt</code>, <code>updatedAt</code></td><td>Shopify GraphQL <code>page</code> fragment</td><td>Shopify</td></tr>
+<tr><td><strong>Image</strong></td><td><code>url</code>, <code>altText</code>, <code>width</code>, <code>height</code></td><td>Shopify GraphQL <code>image</code> fragment</td><td>Shopify CDN</td></tr>
+</tbody></table>
+<h3>4.2 Data Transformation Rules</h3>
+<table><tbody>
+<tr><td>Rule</td><td>Description</td><td>Evidence</td></tr>
+<tr><td>DR-1</td><td>Shopify <code>Connection&lt;T&gt;</code> (edges/nodes) → flat <code>T[]</code></td><td><code>lib/shopify/index.ts</code> <code>removeEdgesAndNodes()</code></td></tr>
+<tr><td>DR-2</td><td>Shopify <code>Cart</code> → local <code>Cart</code> with flattened <code>lines</code> and guaranteed <code>totalTaxAmount</code></td><td><code>reshapeCart()</code></td></tr>
+<tr><td>DR-3</td><td>Shopify <code>Collection</code> → local <code>Collection</code> with added <code>path</code></td><td><code>reshapeCollection()</code></td></tr>
+<tr><td>DR-4</td><td>Shopify <code>Product</code> → local <code>Product</code> with flattened <code>variants</code>, <code>images</code>, filtered by <code>HIDDEN_PRODUCT_TAG</code></td><td><code>reshapeProduct()</code></td></tr>
+<tr><td>DR-5</td><td>Shopify <code>Image</code> → local <code>Image</code> with fallback <code>altText</code> (<code>${productTitle} - ${filename}</code>)</td><td><code>reshapeImages()</code></td></tr>
+<tr><td>DR-6</td><td>Shopify menu URLs → local paths (strip domain, <code>/collections</code>→<code>/search</code>, <code>/pages</code>→``)</td><td><code>getMenu()</code> in <code>lib/shopify/index.ts</code></td></tr>
+</tbody></table>
+<h3>4.3 Caching Strategy</h3>
+<table><tbody>
+<tr><td>Data Type</td><td>Cache Tag</td><td>Cache Life</td><td>Scope</td><td>Evidence</td></tr>
+<tr><td>Products</td><td><code>products</code></td><td><code>days</code></td><td>Shared (public)</td><td><code>getProduct</code>, <code>getProducts</code>, <code>getProductRecommendations</code>, <code>getCollectionProducts</code></td></tr>
+<tr><td>Collections</td><td><code>collections</code></td><td><code>days</code></td><td>Shared</td><td><code>getCollection</code>, <code>getCollections</code>, <code>getCollectionProducts</code></td></tr>
+<tr><td>Cart</td><td><code>cart</code></td><td><code>seconds</code></td><td>Private (per-user)</td><td><code>getCart</code> uses <code>&quot;use cache: private&quot;</code></td></tr>
+<tr><td>Menus</td><td><code>collections</code></td><td><code>days</code></td><td>Shared</td><td><code>getMenu</code></td></tr>
+</tbody></table>
+<p>---</p>
+<h2>5. Security Requirements</h2>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>SR-1</td><td>The system shall authenticate Shopify Storefront API requests using a <code>X-Shopify-Storefront-Access-Token</code> header (public token).</td><td><code>lib/shopify/index.ts</code> <code>shopifyFetch()</code> includes header with <code>key = process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN</code></td><td>Verified</td></tr>
+<tr><td>SR-2</td><td>The system shall validate the <code>SHOPIFY_REVALIDATION_SECRET</code> query parameter on the revalidation endpoint before invalidating caches.</td><td><code>lib/shopify/index.ts</code> <code>revalidate()</code> returns 401 if secret missing or mismatch</td><td>Verified</td></tr>
+<tr><td>SR-3</td><td>The system shall store the cart identifier in an HTTP-only cookie (implied by Next.js <code>cookies()</code> API usage).</td><td><code>lib/shopify/index.ts</code> reads/writes via <code>(await cookies()).get(&#x27;cartId&#x27;)</code> / <code>.set(&#x27;cartId&#x27;, ...)</code></td><td>Verified</td></tr>
+<tr><td>SR-4</td><td>The system shall not expose the Storefront Access Token or Revalidation Secret to the client bundle.</td><td>Both variables used only in server-side code (<code>lib/shopify/index.ts</code>, <code>app/api/revalidate/route.ts</code>, <code>app/sitemap.ts</code>)</td><td>Verified</td></tr>
+<tr><td>SR-5</td><td>The system shall validate required environment variables at build/startup and fail fast with actionable error messages.</td><td><code>lib/utils.ts</code> <code>validateEnvironmentVariables()</code> throws if <code>SHOPIFY_STORE_DOMAIN</code> or <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> missing</td><td>Verified</td></tr>
+<tr><td>SR-6</td><td>The system shall sanitize Shopify-provided HTML content before rendering (via <code>dangerouslySetInnerHTML</code> with trusted source assumption).</td><td><code>components/prose.tsx</code> and <code>app/[page]/page.tsx</code> use <code>dangerouslySetInnerHTML={{ __html: product.descriptionHtml }}</code> — trusted Shopify content</td><td>Inferred</td></tr>
+<tr><td>SR-7</td><td>The system shall always respond 200 to Shopify webhook retries (per Shopify requirement) even on validation failure.</td><td><code>revalidate()</code> returns <code>NextResponse.json({ status: 401 })</code> with 200 HTTP status</td><td>Verified</td></tr>
+</tbody></table>
+<p>&gt; <strong>Gap/Note:</strong> No authentication/authorization for storefront visitors (anonymous shopping only). No user accounts, login, or role-based access control evidenced. This is consistent with a headless Shopify storefront where authentication is handled at checkout by Shopify.</p>
+<p>---</p>
+<h2>6. Non-Functional Requirements</h2>
+<h3>6.1 Performance &amp; Scalability</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>NFR-1</td><td>The system shall leverage React Server Components and server-side rendering for initial page loads to minimize client bundle size and improve TTFB.</td><td><code>app/</code> routes are async server components; <code>app/layout.tsx</code> fetches cart server-side; no client hydration for static content</td><td>Verified</td></tr>
+<tr><td>NFR-2</td><td>The system shall use Next.js caching with tag-based invalidation (<code>products</code>, <code>collections</code>, <code>cart</code>) for GraphQL responses.</td><td><code>lib/shopify/index.ts</code> uses <code>cacheTag()</code>, <code>cacheLife()</code>, <code>revalidateTag()</code>; <code>&quot;use cache: private&quot;</code> for cart</td><td>Verified</td></tr>
+<tr><td>NFR-3</td><td>The system shall implement optimistic UI updates for cart mutations to eliminate perceived latency.</td><td><code>components/cart/cart-context.tsx</code> <code>useOptimistic</code> with <code>cartReducer</code></td><td>Verified</td></tr>
+<tr><td>NFR-4</td><td>The system shall prefetch navigation links on hover/viewport entry via Next.js <code>prefetch={true}</code>.</td><td><code>Link</code> components throughout use <code>prefetch={true}</code> (default) or explicit</td><td>Verified</td></tr>
+<tr><td>NFR-5</td><td>The system shall optimize images via Next.js Image component with automatic format selection (AVIF/WebP) and responsive sizing.</td><td><code>next.config.ts</code> image formats; <code>GridTileImage</code>, <code>Gallery</code> use <code>fill</code>/<code>sizes</code> props</td><td>Verified</td></tr>
+<tr><td>NFR-6</td><td>The system shall support partial pre-rendering (PPR) and inline CSS for critical path optimization.</td><td><code>next.config.ts</code> <code>experimental: { ppr: true, inlineCss: true, useCache: true }</code></td><td>Verified</td></tr>
+<tr><td>NFR-7</td><td>The system shall stream product recommendations and gallery images via <code>Suspense</code> boundaries.</td><td><code>app/product/[handle]/page.tsx</code> wraps <code>ProductDescription</code> and <code>Gallery</code> in <code>Suspense</code></td><td>Verified</td></tr>
+</tbody></table>
+<h3>6.2 Reliability &amp; Resilience</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>NFR-8</td><td>The system shall gracefully handle missing Shopify configuration by returning empty data instead of crashing (development fallback).</td><td><code>getCollections()</code>, <code>getProducts()</code>, <code>getProduct()</code>, <code>getCollectionProducts()</code> return <code>[]</code>/<code>undefined</code> with console log when <code>!endpoint</code></td><td>Verified</td></tr>
+<tr><td>NFR-9</td><td>The system shall handle Shopify GraphQL errors with structured error objects containing status, message, cause, and query.</td><td><code>shopifyFetch()</code> catches errors, normalizes to <code>{ status, message, cause, query }</code></td><td>Verified</td></tr>
+<tr><td>NFR-10</td><td>The system shall provide a client-side error boundary with retry capability for runtime errors.</td><td><code>app/error.tsx</code> renders friendly message with <code>reset()</code> button</td><td>Verified</td></tr>
+<tr><td>NFR-11</td><td>The system shall ensure webhook revalidation endpoint always returns 200 to prevent Shopify retry storms.</td><td><code>revalidate()</code> returns <code>NextResponse.json({ status: 401 })</code> (still 200 HTTP)</td><td>Verified</td></tr>
+</tbody></table>
+<h3>6.3 Observability</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>NFR-12</td><td>The system shall log revalidation events (topic, revalidated flag, timestamp) for debugging.</td><td><code>revalidate()</code> returns <code>{ revalidated: true, now: Date.now() }</code> and logs invalid secret</td><td>Verified</td></tr>
+<tr><td>NFR-13</td><td>The system shall log skipped GraphQL calls when Shopify is not configured.</td><td><code>console.log(&#x27;Skipping getX - Shopify not configured&#x27;)</code> in multiple functions</td><td>Verified</td></tr>
+</tbody></table>
+<h3>6.4 Maintainability &amp; Developer Experience</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>NFR-14</td><td>The system shall enforce strict TypeScript with <code>strict: true</code>, <code>noUncheckedIndexedAccess</code>, and isolated modules.</td><td><code>tsconfig.json</code></td><td>Verified</td></tr>
+<tr><td>NFR-15</td><td>The system shall enforce consistent code formatting via Prettier with Tailwind CSS plugin.</td><td><code>package.json</code> scripts <code>prettier</code>, <code>prettier:check</code>, <code>test</code>; <code>prettier-plugin-tailwindcss</code> in devDependencies</td><td>Verified</td></tr>
+<tr><td>NFR-16</td><td>The system shall separate Shopify-specific logic into a swappable <code>lib/shopify</code> module to support other commerce providers.</td><td>README &quot;Providers&quot; section; <code>lib/shopify</code> contains all Shopify queries/mutations/fragments/types</td><td>Verified</td></tr>
+<tr><td>NFR-17</td><td>The system shall use GraphQL fragments to avoid duplication and ensure consistent data shapes.</td><td><code>lib/shopify/fragments/</code> — <code>cart.ts</code>, <code>product.ts</code>, <code>image.ts</code>, <code>seo.ts</code> imported by queries/mutations</td><td>Verified</td></tr>
+</tbody></table>
+<h3>6.5 Compatibility</h3>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>NFR-18</td><td>The system shall target modern browsers (ES2015+) with React 19 and Next.js 15.</td><td><code>package.json</code> dependencies; <code>tsconfig.json</code> <code>target: &quot;es2015&quot;</code>, <code>lib: [&quot;dom&quot;, &quot;dom.iterable&quot;, &quot;esnext&quot;]</code></td><td>Verified</td></tr>
+<tr><td>NFR-19</td><td>The system shall support Node.js 22+ (per <code>@types/node: 22.13.10</code>).</td><td><code>package.json</code> devDependencies</td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>7. Operational &amp; Deployment Requirements</h2>
+<table><tbody>
+<tr><td>ID</td><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>OR-1</td><td>The system shall be deployable to Vercel with zero-config (framework detection) and support Vercel Environment Variables for secrets.</td><td>README &quot;Running locally&quot; uses <code>vercel link</code>, <code>vercel env pull</code>; <code>.env.example</code> documents required vars</td><td>Verified</td></tr>
+<tr><td>OR-2</td><td>The system shall require <code>SHOPIFY_STORE_DOMAIN</code>, <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code>, and <code>SHOPIFY_REVALIDATION_SECRET</code> to be configured in the deployment environment.</td><td><code>.env.example</code>, <code>lib/utils.ts</code> <code>validateEnvironmentVariables()</code></td><td>Verified</td></tr>
+<tr><td>OR-3</td><td>The system shall support local development via <code>pnpm dev</code> (Turbopack) and production build via <code>pnpm build</code> / <code>pnpm start</code>.</td><td><code>package.json</code> scripts</td><td>Verified</td></tr>
+<tr><td>OR-4</td><td>The system shall configure Next.js to allow Shopify CDN images (<code>cdn.shopify.com/s/files/**</code>) with AVIF/WebP optimization.</td><td><code>next.config.ts</code> <code>images.remotePatterns</code> and <code>formats</code></td><td>Verified</td></tr>
+<tr><td>OR-5</td><td>The system shall generate a production sitemap dynamically at request time (<code>force-dynamic</code>) using live Shopify data.</td><td><code>app/sitemap.ts</code> <code>export const dynamic = &#x27;force-dynamic&#x27;</code></td><td>Verified</td></tr>
+<tr><td>OR-6</td><td>The system shall support Shopify webhook registration for `collections/create</td><td>delete</td><td>update<code> and </code>products/create</td><td>delete</td><td>update<code> topics pointing to </code>/api/revalidate`.</td><td><code>lib/shopify/index.ts</code> <code>revalidate()</code> handles these topics; README references Vercel/Shopify integration guide</td><td>Verified</td></tr>
+<tr><td>OR-7</td><td>The system shall not commit <code>.env</code> files (secrets) to version control.</td><td><code>.gitignore</code> includes <code>.env*</code> but not <code>.env.example</code></td><td>Verified</td></tr>
+<tr><td>OR-8</td><td>The system shall use pnpm as package manager (lockfile <code>pnpm-lock.yaml</code>).</td><td><code>package.json</code>, <code>pnpm-lock.yaml</code></td><td>Verified</td></tr>
+<tr><td>OR-9</td><td>The system shall use Geist font (Vercel&#x27;s font) with <code>next/font</code> for optimal loading.</td><td><code>app/layout.tsx</code> imports <code>GeistSans</code> from <code>geist/font/sans</code></td><td>Verified</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>8. Discrepancies &amp; Uncertainties</h2>
+<table><tbody>
+<tr><td>ID</td><td>Observation</td><td>Classification</td></tr>
+<tr><td>UNC-1</td><td><strong>Cart tax calculation</strong>: <code>reshapeCart()</code> synthesizes <code>totalTaxAmount: { amount: &quot;0.0&quot;, ... }</code> if missing from Shopify response. The cart modal displays this as a line item &quot;Taxes: $0.00&quot; but also shows &quot;Shipping: Calculated at checkout&quot;. It is unclear whether Shopify Storefront API returns real tax estimates pre-checkout or if this is a known placeholder.</td><td>Uncertain — implementation synthesizes zero; requirement for real-time tax estimate not evidenced</td></tr>
+<tr><td>UNC-2</td><td><strong>Inventory checking</strong>: <code>VariantSelector</code> disables unavailable combinations based on <code>availableForSale</code> from Shopify, but no real-time inventory quantity is displayed or enforced (e.g., &quot;Only 3 left&quot;).</td><td>Inferred — only boolean availability evidenced</td></tr>
+<tr><td>UNC-3</td><td><strong>Cart persistence across sessions</strong>: The <code>cartId</code> cookie has no explicit <code>maxAge</code>/<code>expires</code> set in <code>createCartAndSetCookie()</code>. Reliance on browser session cookie behavior.</td><td>Uncertain — cookie options not specified in <code>cookies().set(&#x27;cartId&#x27;, cart.id!)</code></td></tr>
+<tr><td>UNC-4</td><td><strong>Rate limiting / abuse protection</strong>: No evidenced rate limiting on <code>addItem</code>, <code>updateItemQuantity</code>, or search endpoints.</td><td>Unknown — not implemented in repository</td></tr>
+<tr><td>UNC-5</td><td><strong>Analytics / tracking</strong>: No evidenced integration (Google Analytics, Vercel Analytics, etc.) beyond the welcome toast&#x27;s deploy link.</td><td>Unknown</td></tr>
+<tr><td>UNC-6</td><td><strong>Accessibility (a11y) completeness</strong>: ARIA labels present on key controls (cart, buttons, search), but no comprehensive a11y audit evidenced. Focus management in modals uses <code>@headlessui/react</code>.</td><td>Inferred — partial evidence</td></tr>
+<tr><td>UNC-7</td><td><strong>Internationalization (i18n)</strong>: No evidenced multi-language or multi-currency support beyond single <code>currencyCode</code> from Shopify. Price formatting uses <code>Intl.NumberFormat(undefined, ...)</code> (browser locale).</td><td>Unknown — not implemented</td></tr>
+<tr><td>UNC-8</td><td><strong>Testing</strong>: No test files found in repository. <code>package.json</code> <code>test</code> script only runs <code>prettier:check</code>.</td><td>Verified absence — no unit/integration/e2e tests</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>9. Requirements Traceability Matrix</h2>
+<table><tbody>
+<tr><td>Feature Area</td><td>Functional</td><td>Business Rules</td><td>Interface</td><td>Data</td><td>Security</td><td>Non-Functional</td><td>Operational</td></tr>
+<tr><td>Homepage</td><td>FR-1.1</td><td>BR-2</td><td>—</td><td>DR-1, DR-4</td><td>—</td><td>NFR-1, NFR-2, NFR-5</td><td>—</td></tr>
+<tr><td>Search</td><td>FR-1.2, FR-1.3</td><td>BR-1</td><td>IF-21, IF-22</td><td>DR-1</td><td>—</td><td>NFR-1, NFR-2, NFR-4, NFR-7</td><td>—</td></tr>
+<tr><td>Collections</td><td>FR-1.4, FR-1.7</td><td>BR-1, BR-2, BR-6</td><td>IF-23</td><td>DR-1, DR-3</td><td>—</td><td>NFR-1, NFR-2</td><td>—</td></tr>
+<tr><td>Product Detail</td><td>FR-1.5, FR-1.6</td><td>BR-1, BR-5, BR-7</td><td>IF-24</td><td>DR-1, DR-4, DR-5</td><td>—</td><td>NFR-1, NFR-2, NFR-5, NFR-7</td><td>—</td></tr>
+<tr><td>Cart</td><td>FR-2.1–2.8</td><td>BR-3, BR-4, BR-8</td><td>IF-2–6</td><td>DR-2</td><td>SR-3</td><td>NFR-3, NFR-8</td><td>—</td></tr>
+<tr><td>Variant Selection</td><td>FR-3.1–3.4</td><td>BR-5</td><td>—</td><td>DR-1</td><td>—</td><td>NFR-4</td><td>—</td></tr>
+<tr><td>Navigation</td><td>FR-4.1–4.4</td><td>—</td><td>IF-21</td><td>DR-5 (Menu)</td><td>—</td><td>NFR-4</td><td>—</td></tr>
+<tr><td>Content Pages</td><td>FR-1.8</td><td>—</td><td>IF-25</td><td>DR-1 (Page)</td><td>—</td><td>NFR-1</td><td>—</td></tr>
+<tr><td>SEO</td><td>FR-5.1–5.6</td><td>BR-1</td><td>IF-21–25</td><td>—</td><td>—</td><td>—</td><td>OR-5</td></tr>
+<tr><td>Revalidation</td><td>FR-6.1–6.3</td><td>—</td><td>IF-1</td><td>—</td><td>SR-2, SR-7</td><td>NFR-11, NFR-12</td><td>OR-6</td></tr>
+<tr><td>UX Enhancements</td><td>FR-7.1–7.4</td><td>—</td><td>—</td><td>—</td><td>—</td><td>NFR-9, NFR-10</td><td>—</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>10. Conclusion</h2>
+<p>The repository evidences a <strong>production-ready, modern headless commerce storefront</strong> with the following characteristics:</p>
+<p><strong>Strongly Evidenced Requirements:</strong></p>
+<ul>
+<li>Complete anonymous shopping flow: browse → search → product detail → variant selection → cart → Shopify checkout</li>
+<li>Server-first architecture with RSC, streaming, caching, and optimistic UI</li>
+<li>Clean separation of Shopify integration (<code>lib/shopify</code>) enabling provider portability</li>
+<li>Comprehensive SEO/metadata/sitemap generation</li>
+<li>Webhook-driven cache revalidation</li>
+<li>Responsive, accessible UI with dark mode</li>
+</ul>
+<p><strong>Not Evidenced (Gaps for Consideration):</strong></p>
+<ul>
+<li>User authentication / account management (deferred to Shopify checkout)</li>
+<li>Real-time inventory display</li>
+<li>Tax estimation pre-checkout</li>
+<li>Analytics / conversion tracking</li>
+<li>Automated testing</li>
+<li>Multi-currency / multi-language</li>
+<li>Rate limiting / bot protection</li>
+<li>Cookie security attributes (SameSite, Secure, HttpOnly) explicitly set</li>
+</ul>
+<p><strong>Architectural Decisions as Constraints:</strong></p>
+<ul>
+<li>Shopify Storefront API as sole data source (no local database)</li>
+<li>Vercel/Next.js platform dependencies (Image Optimization, ImageResponse, Server Actions, <code>next/cache</code> tags)</li>
+<li>pnpm + TypeScript strict mode + Prettier enforced</li>
+</ul>
+<p>This requirements reconstruction reflects <strong>what the system demonstrably does and requires to operate</strong>, not aspirational features. All verified requirements are traceable to specific implementation artifacts.</p>
+</main>
+</body>
+</html>

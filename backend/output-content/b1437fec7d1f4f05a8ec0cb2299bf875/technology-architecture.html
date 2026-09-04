@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>technology-architecture</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Technology Architecture Analysis — Next.js Commerce (Shopify)</h1>
+<h2>1. Executive Summary</h2>
+<p>Next.js Commerce is a <strong>single Next.js 15 / React 19 web application</strong> that functions as a <strong>headless storefront</strong> for Shopify. It is not a multi-service system: the entire deployable unit is one Next.js App Router server-rendered application that delegates commerce concerns to the external Shopify Storefront API via GraphQL.</p>
+<p>The architecture decomposes into four meaningful runtime components:</p>
+<p>1. <strong>A Next.js web application</strong> (React Server Components, Server Actions, Route Handlers) executing in a Node.js / Vercel Edge-compatible runtime.</p>
+<p>2. <strong>A Shopify Storefront API client layer</strong> (<code>lib/shopify</code>) that owns all GraphQL queries, mutations, fragments, and revalidation logic.</p>
+<p>3. <strong>A single HTTP route handler</strong> (<code>app/api/revalidate/route.ts</code>) that receives Shopify webhook callbacks for on-demand ISR cache invalidation.</p>
+<p>4. <strong>The external Shopify Storefront API</strong>, which is the source of truth for products, collections, cart, menus, and pages.</p>
+<p>There is <strong>no internal database, no message broker, no separate backend service, and no worker process</strong>. State is held either in the browser (cart via <code>cart-context.tsx</code> and cookies) or in Shopify&#x27;s hosted systems.</p>
+<p>---</p>
+<h2>2. Architecture Diagram</h2>
+<div class="mermaid">flowchart LR
+    User([Browser User])
+    Edge[&quot;Next.js Application&lt;br/&gt;(App Router · React Server Components · Server Actions)&quot;]
+    Shopify[&quot;Shopify Storefront API&lt;br/&gt;(external · GraphQL)&quot;]
+    Webhook[&quot;Shopify Webhook&lt;br/&gt;(on-demand revalidation)&quot;]
+
+    User -- &quot;HTTPS · RSC + Client Components&quot; --&gt; Edge
+    Edge -- &quot;GraphQL queries / mutations · Storefront Access Token&quot; --&gt; Shopify
+    Webhook -- &quot;POST /api/revalidate · SHOPIFY_REVALIDATION_SECRET&quot; --&gt; Edge
+    Edge -- &quot;revalidateTag / revalidatePath&quot; --&gt; Edge
+
+    classDef ext fill:#fff7e6,stroke:#d48806,stroke-width:1px
+    class Shopify,Webhook ext</div>
+<p><strong>Reading the diagram.</strong> The browser is the only direct user of the Next.js application. The Next.js application is the only direct caller of the Shopify Storefront API. Shopify initiates contact back into the Next.js application only via the webhook used for on-demand revalidation. The self-loop on the Next.js node represents the in-process <code>revalidateTag</code> / <code>revalidatePath</code> calls that the webhook triggers after validating the shared secret.</p>
+<p>---</p>
+<h2>3. Component-by-Component Reconstruction</h2>
+<h3>3.1 Next.js Web Application (primary component)</h3>
+<ul>
+<li><strong>Responsibility.</strong> Render server-side React for the storefront UI, expose a small public API surface (<code>/api/revalidate</code>), run Server Actions for cart mutations, and orchestrate data fetching from Shopify.</li>
+<li><strong>Technology.</strong></li>
+<li><strong>Next.js <code>15.6.0-canary.60</code></strong> — App Router (<code>app/</code> directory with <code>layout.tsx</code>, <code>page.tsx</code>, <code>error.tsx</code>, <code>loading.tsx</code>, route groups under <code>[page]</code>, <code>product/[handle]</code>, <code>search/[collection]</code>).</li>
+<li><strong>React <code>19.0.0</code> / <code>react-dom19.0.0</code></strong> — including React Server Components, Server Actions, <code>Suspense</code>, and <code>useOptimistic</code> (as documented in <code>README.md</code>).</li>
+<li><strong>Turbopack</strong> — enabled by <code>next dev --turbopack</code> in <code>package.json</code> scripts.</li>
+<li><strong>TypeScript <code>5.8.2</code></strong> — strict typing for components and the Shopify layer (<code>tsconfig.json</code>, <code>.tsx</code> / <code>.ts</code>).</li>
+<li><strong>Tailwind CSS <code>4.0.14</code></strong> — styling pipeline via <code>@tailwindcss/postcss</code> and <code>postcss.config.mjs</code>.</li>
+<li><strong>UI libraries</strong> — <code>@headlessui/react</code> for accessible primitives, <code>@heroicons/react</code> for icons, <code>sonner</code> for toasts, <code>geist</code> font family, <code>clsx</code> for class composition.</li>
+<li><strong>Runtime / deployment context.</strong> Intended to run on <strong>Vercel</strong> (README and the <code>vercel env pull</code> workflow establish this). Next.js can target either the Node.js runtime or the Edge runtime depending on route configuration; no edge-only overrides were found in the supplied tree, so the default Node.js runtime applies.</li>
+<li><strong>Entry points.</strong></li>
+<li><code>app/layout.tsx</code> — root layout, wraps all routes.</li>
+<li><code>app/page.tsx</code> — homepage (likely a featured collection / grid).</li>
+<li><code>app/[page]/page.tsx</code> — dynamic Shopify CMS pages.</li>
+<li><code>app/product/[handle]/page.tsx</code> — product detail pages.</li>
+<li><code>app/search/page.tsx</code> and <code>app/search/[collection]/page.tsx</code> — search and collection browsing.</li>
+<li><code>app/api/revalidate/route.ts</code> — webhook endpoint (see §3.3).</li>
+<li><code>app/sitemap.ts</code> and <code>app/robots.ts</code> — Next.js Metadata conventions.</li>
+<li>Per-route <code>opengraph-image.tsx</code> — dynamic OG image generation.</li>
+<li><strong>Inputs.</strong> Browser HTTPS requests; webhook POSTs from Shopify.</li>
+<li><strong>Outputs.</strong> HTML/streaming RSC payloads to the browser; GraphQL traffic to Shopify; cache invalidation directives within the Next.js runtime.</li>
+<li><strong>Dependencies.</strong> <code>@headlessui/react</code>, <code>@heroicons/react</code>, <code>clsx</code>, <code>geist</code>, <code>next</code>, <code>react</code>, <code>react-dom</code>, <code>sonner</code>. Dev tooling: Tailwind CSS, PostCSS, TypeScript types, Prettier.</li>
+<li><strong>Evidence and certainty.</strong> <strong>Verified</strong> — <code>package.json</code>, <code>app/</code> tree, <code>next.config.ts</code>, <code>tsconfig.json</code>, <code>postcss.config.mjs</code>.</li>
+</ul>
+<h3>3.2 Shopify Storefront API Client Layer (<code>lib/shopify</code>)</h3>
+<ul>
+<li><strong>Responsibility.</strong> Provide a single, isolated integration boundary with the Shopify Storefront API. Own GraphQL fragment definitions, query/mutation construction, request execution, response normalization, and the webhook-secret-driven revalidation routine. The README states explicitly that alternative providers should be able to &quot;fork this repository and swap out the <code>lib/shopify</code> file with their own implementation while leaving the rest of the template mostly unchanged,&quot; confirming this is the provider boundary.</li>
+<li><strong>Technology.</strong> Pure TypeScript modules — no SDK dependency on <code>@shopify/*</code> packages in <code>package.json</code>. Implementation is hand-written GraphQL over <code>fetch</code>.</li>
+<li><strong>Runtime / deployment context.</strong> Executes in the same Node.js / Edge process as the Next.js application; this is not a separate service.</li>
+<li><strong>Files (verified from tree).</strong></li>
+<li><code>lib/shopify/index.ts</code> — public façade (likely the only file the rest of the app imports from).</li>
+<li><code>lib/shopify/types.ts</code> — TypeScript types for products, collections, cart, page, menu, image, SEO.</li>
+<li><code>lib/shopify/fragments/{cart,image,product,seo}.ts</code> — GraphQL fragment definitions, composed by queries and mutations.</li>
+<li><code>lib/shopify/queries/{cart,collection,menu,page,product}.ts</code> — read operations.</li>
+<li><code>lib/shopify/mutations/cart.ts</code> — cart write operations.</li>
+<li><strong>Inputs.</strong> Server-side calls from React Server Components, Server Actions (<code>components/cart/actions.ts</code>), and route handlers. Each call is parameterized by handles, collection IDs, or cart IDs.</li>
+<li><strong>Outputs.</strong> Typed JavaScript objects (products, collections, menus, pages, cart state) returned to server components; mutations that mutate Shopify-hosted cart state.</li>
+<li><strong>Dependencies on Shopify.</strong> <code>SHOPIFY_STORE_DOMAIN</code>, <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> from <code>.env.example</code> (see §3.5).</li>
+<li><strong>Evidence and certainty.</strong> <strong>Verified</strong> — directory structure, package.json (no SDK), README.</li>
+</ul>
+<h3>3.3 On-Demand Revalidation Webhook Endpoint</h3>
+<ul>
+<li><strong>Responsibility.</strong> Accept authenticated POSTs from Shopify when catalog content changes and trigger Next.js cache invalidation for the affected tags/paths so that storefront pages reflect the change without a redeploy.</li>
+<li><strong>Technology.</strong> A single Next.js Route Handler at <code>app/api/revalidate/route.ts</code>. Authentication uses the shared secret <code>SHOPIFY_REVALIDATION_SECRET</code>.</li>
+<li><strong>Runtime / deployment context.</strong> Same Next.js process as the rest of the application; receives an inbound HTTPS POST.</li>
+<li><strong>Inputs.</strong> HTTP POST body from Shopify plus a header or query carrying <code>SHOPIFY_REVALIDATION_SECRET</code>.</li>
+<li><strong>Outputs.</strong> A JSON acknowledgement on success, an error response on invalid secret. Internally calls <code>revalidateTag</code> and/or <code>revalidatePath</code> from <code>next/cache</code>.</li>
+<li><strong>Evidence and certainty.</strong> <strong>Verified</strong> — file presence, env variable name in <code>.env.example</code>, and the README&#x27;s reference to &quot;Vercel, Next.js Commerce, and Shopify Integration Guide&quot; which describes webhook-based revalidation. <strong>Implementation details inside the handler (specific fields read, tags invalidated)</strong> are not fully visible from the supplied snippets and would require reading the file; the <em>existence and purpose</em> of the endpoint is verified.</li>
+</ul>
+<h3>3.4 External System: Shopify Storefront API</h3>
+<ul>
+<li><strong>Responsibility.</strong> Source of truth for catalog (products, collections, variants, images), content (pages, menus), and cart state. Implements the Storefront GraphQL schema that the client layer targets.</li>
+<li><strong>Technology.</strong> Hosted SaaS; not part of this repository.</li>
+<li><strong>Runtime / deployment context.</strong> Reached over HTTPS at <code>https://{SHOPIFY_STORE_DOMAIN}/api/2024-.../graphql.json</code> (the conventional Storefront endpoint, not directly visible in supplied snippets).</li>
+<li><strong>Inputs.</strong> GraphQL queries and mutations, authenticated via the <code>X-Shopify-Storefront-Access-Token</code> header.</li>
+<li><strong>Outputs.</strong> GraphQL JSON responses; webhook callbacks to <code>/api/revalidate</code>.</li>
+<li><strong>Evidence and certainty.</strong> <strong>Verified</strong> — <code>.env.example</code> lists the three Shopify environment variables and the README explicitly describes this as the Shopify variant of Next.js Commerce.</li>
+</ul>
+<h3>3.5 Configuration and Environment Boundary</h3>
+<ul>
+<li><strong>Responsibility.</strong> Define which external systems the application talks to and how requests are authenticated.</li>
+<li><strong>Variables (from <code>.env.example</code>).</strong></li>
+<li><code>COMPANY_NAME</code> — display name (e.g. <code>&quot;Vercel Inc.&quot;</code>).</li>
+<li><code>SITE_NAME</code> — site display name (e.g. <code>&quot;Next.js Commerce&quot;</code>).</li>
+<li><code>SHOPIFY_REVALIDATION_SECRET</code> — shared secret for the <code>/api/revalidate</code> webhook.</li>
+<li><code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code> — bearer token for Storefront API requests.</li>
+<li><code>SHOPIFY_STORE_DOMAIN</code> — store subdomain (e.g. <code>your-store.myshopify.com</code>).</li>
+<li><strong>Evidence and certainty.</strong> <strong>Verified</strong> — <code>.env.example</code>. The exact binding sites of these variables inside <code>lib/shopify/index.ts</code> and <code>app/api/revalidate/route.ts</code> are not in the supplied snippets but are conventional.</li>
+<li><strong>Architectural implication.</strong> This is the <strong>provider boundary</strong>. Replacing Shopify with another headless commerce backend is presented by the README as a single-file swap of <code>lib/shopify</code>, with the rest of the template untouched. Architecture-wise, the diagram should therefore show Shopify as a single substitutable external node, not as multiple bespoke integrations.</li>
+</ul>
+<p>---</p>
+<h2>4. Communication and Data Flows</h2>
+<h3>4.1 Browse flow (homepage, collection, product, search)</h3>
+<p>1. Browser requests an HTTPS URL.</p>
+<p>2. Next.js resolves the matching route under <code>app/</code>.</p>
+<p>3. The Server Component imports from <code>lib/shopify</code> (e.g. <code>getCollection</code>, <code>getProduct</code>).</p>
+<p>4. <code>lib/shopify/index.ts</code> issues a GraphQL POST to the Shopify Storefront API using the configured domain and access token.</p>
+<p>5. The response is normalized to TypeScript objects and returned to the Server Component.</p>
+<p>6. Next.js streams the rendered RSC HTML to the browser.</p>
+<p>7. Subsequent navigations use App Router client transitions and may re-fetch via the same path; cached results are served from Next.js&#x27;s data cache until invalidated.</p>
+<h3>4.2 Cart flow1. <code>components/cart/cart-context.tsx</code> provides the client-side cart state, hydrating from cookies set by Server Actions.</h3>
+<p>2. <code>components/cart/actions.ts</code> defines Server Actions (<code>addItem</code>, <code>updateItem</code>, <code>removeItem</code>) annotated with <code>&quot;use server&quot;</code>.</p>
+<p>3. These Server Actions call mutation helpers in <code>lib/shopify/mutations/cart.ts</code>, which target the Shopify Storefront API cart mutations and return the updated cart.</p>
+<p>4. The cart is re-rendered in the client using <code>useOptimistic</code>, per the README.</p>
+<p>5. Persistence of the cart ID between sessions uses cookies (the standard Next.js Commerce pattern; cookie usage is evident from the <code>cart-context.tsx</code> filename and the absence of any backend persistence in this repo).</p>
+<h3>4.3 Revalidation flow</h3>
+<p>1. A merchant edits content in Shopify (product, collection, page, menu).</p>
+<p>2. Shopify sends an HTTP POST to the deployed <code>/api/revalidate</code> endpoint.</p>
+<p>3. The route handler validates the request using <code>SHOPIFY_REVALIDATION_SECRET</code>.</p>
+<p>4. On success, the handler invokes <code>revalidateTag</code> and/or <code>revalidatePath</code> against the affected entries, causing Next.js to invalidate its data cache for the corresponding Server Components.</p>
+<p>5. The next request to the affected pages re-fetches from Shopify, returning fresh content.</p>
+<h3>4.4 SEO and metadata flows</h3>
+<ul>
+<li><code>app/sitemap.ts</code> and <code>app/robots.ts</code> generate <code>sitemap.xml</code> and <code>robots.txt</code> via Next.js Metadata file conventions; <code>lib/shopify/queries/page.ts</code> and the collection/product queries feed them.</li>
+<li>Per-route <code>opengraph-image.tsx</code> files generate dynamic social previews using Shopify data.</li>
+</ul>
+<p>---</p>
+<h2>5. Architectural Dimensions Not Present</h2>
+<p>The following dimensions were checked and <strong>not found</strong> in the repository. They are intentionally omitted from the diagram.</p>
+<ul>
+<li><strong>No database or ORM.</strong> No Prisma, Drizzle, Mongoose, or similar. No <code>db/</code>, <code>migrations/</code>, or schema files.</li>
+<li><strong>No message broker or queue.</strong> No Redis, RabbitMQ, SQS, Kafka, or worker entrypoints.</li>
+<li><strong>No separate backend service.</strong> All server logic lives inside the Next.js application.</li>
+<li><strong>No authentication subsystem for end users.</strong> Storefront browsing is anonymous; cart identity is cookie-based; merchant authentication is delegated entirely to Shopify.</li>
+<li><strong>No infrastructure-as-code.</strong> No <code>Dockerfile</code>, no <code>docker-compose.yml</code>, no Kubernetes manifests, no Terraform. Deployment is implied to be Vercel-managed per the README, not defined here.</li>
+<li><strong>No background jobs or schedulers.</strong></li>
+</ul>
+<p>---</p>
+<h2>6. Verified vs. Inferred vs. Unknown</h2>
+<table><tbody>
+<tr><td>Element</td><td>Status</td><td>Evidence</td></tr>
+<tr><td>Next.js 15 / React 19 web app with App Router</td><td>Verified</td><td><code>package.json</code>, <code>app/</code> tree</td></tr>
+<tr><td>Single Shopify Storefront client layer in <code>lib/shopify</code></td><td>Verified</td><td>Directory listing, README statement about provider-swappability</td></tr>
+<tr><td>GraphQL over HTTPS to Shopify Storefront API</td><td>Verified</td><td>No SDK present, hand-written fragments/queries/mutations under <code>lib/shopify</code>, env vars in <code>.env.example</code></td></tr>
+<tr><td><code>/api/revalidate</code> webhook endpoint with shared-secret auth</td><td>Verified (existence), inferred (exact body parsing/tag set)</td><td><code>app/api/revalidate/route.ts</code>, <code>SHOPIFY_REVALIDATION_SECRET</code></td></tr>
+<tr><td>Vercel as intended deployment target</td><td>Verified</td><td>README deployment instructions</td></tr>
+<tr><td>Cart persistence via cookies, <code>useOptimistic</code> UI</td><td>Strongly inferred</td><td><code>cart-context.tsx</code>, <code>actions.ts</code>, README mention of <code>useOptimistic</code></td></tr>
+<tr><td>Edge runtime usage for any specific route</td><td>Unknown</td><td>No edge-export markers visible in supplied snippets</td></tr>
+<tr><td>Specific GraphQL operations and tags invalidated by webhook</td><td>Unknown</td><td>Requires reading <code>lib/shopify/index.ts</code> and <code>app/api/revalidate/route.ts</code> body</td></tr>
+</tbody></table>
+<p>---</p>
+<h2>7. Documentation Reconciliation</h2>
+<p>The README describes the application as &quot;a high-performance, server-rendered Next.js App Router ecommerce application&quot; using &quot;React Server Components, Server Actions, <code>Suspense</code>, <code>useOptimistic</code>, and more.&quot; This matches the implementation evidence:</p>
+<ul>
+<li>React Server Components and Server Actions are verified by <code>app/</code> (Server Components) and <code>components/cart/actions.ts</code> (Server Actions).</li>
+<li><code>useOptimistic</code> is strongly supported by the cart-component directory and README claim.</li>
+<li><code>Suspense</code> is supported by <code>app/search/loading.tsx</code> (a Suspense boundary for the search route).</li>
+<li>The provider-swappability claim is consistent with <code>lib/shopify</code> being a thin, isolated GraphQL client.</li>
+</ul>
+<p>No material mismatch between documented intent and implemented architecture was found.</p>
+<p>---</p>
+<h2>8. Key Unknowns and Ambiguities</h2>
+<ul>
+<li><strong>Exact GraphQL endpoint URL.</strong> Not visible in supplied snippets; the conventional Storefront API URL pattern is used by inference.</li>
+<li><strong>Webhook payload shape and tag strategy.</strong> The contents of <code>app/api/revalidate/route.ts</code> determine which tags/paths are invalidated and how the body is parsed.</li>
+<li><strong>Cart cookie schema.</strong> The cookie name, encoding, and <code>maxAge</code> are inside <code>lib/shopify/index.ts</code> and/or <code>components/cart/cart-context.tsx</code>.</li>
+<li><strong>CDN / image optimization configuration.</strong> Next.js <code>next.config.ts</code> likely configures Shopify&#x27;s image CDN domains, but the configuration was not in the supplied snippets.</li>
+</ul>
+<p>These are normal gaps that do not affect the high-level architecture. The architecture is a single Next.js application fronting the Shopify Storefront API, with a webhook loop for cache invalidation.</p>
+</main>
+</body>
+</html>

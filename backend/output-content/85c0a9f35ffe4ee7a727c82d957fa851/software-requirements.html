@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>software-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Software Requirements Analysis</h1>
+<p>Based on the evidence from this repository, the system is an e-commerce storefront built with Next.js, React, TypeScript, and Tailwind CSS, integrated with Shopify. Below is the reconstructed requirements analysis.</p>
+<h2>Functional Requirements</h2>
+<table><tbody>
+<tr><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>The system must display a homepage with a product carousel and three-item grid</td><td><code>app/page.tsx</code> renders <code>&lt;ThreeItemGrid /&gt;</code> and <code>&lt;Carousel /&gt;</code> components; <code>components/grid/three-items.tsx</code> shows homepage items from <code>hidden-homepage-featured-items</code> collection</td><td>Verified</td></tr>
+<tr><td>The system must support product search with query parameter <code>q</code></td><td><code>components/layout/search/filter/item.tsx</code> handles <code>SortFilterItem</code> with <code>slug</code>; <code>app/search/page.tsx</code> processes <code>searchParams</code> and renders product grid; search form at <code>components/layout/navbar/search.tsx</code> submits to <code>/search</code></td><td>Verified</td></tr>
+<tr><td>The system must support product filtering and sorting</td><td><code>lib/constants.ts</code> defines <code>SortFilterItem</code> type with sort options (RELEVANCE, BEST_SELLING, CREATED_AT, PRICE); <code>app/search/page.tsx</code> uses <code>sorting</code> array from constants; filter UI components in <code>components/layout/search/filter/</code></td><td>Verified</td></tr>
+<tr><td>The system must display individual product pages</td><td><code>app/product/[handle]/page.tsx</code> renders product details, gallery, variant selector, and add-to-cart; <code>generateMetadata</code> function generates product SEO metadata</td><td>Verified</td></tr>
+<tr><td>The system must support shopping cart operations</td><td><code>components/cart/actions.ts</code> exports <code>addItem</code>, <code>removeItem</code>, <code>updateItemQuantity</code>, <code>redirectToCheckout</code>, <code>createCartAndSetCookie</code>; <code>components/cart/cart-context.tsx</code> provides cart state management with optimistic updates; <code>components/product/product-description.tsx</code> includes <code>&lt;AddToCart /&gt;</code></td><td>Verified</td></tr>
+<tr><td>The system must redirect to checkout after cart operations</td><td><code>components/cart/actions.ts</code> <code>redirectToCheckout</code> function calls <code>getCart()</code> and redirects to <code>cart!.checkoutUrl</code></td><td>Verified</td></tr>
+<tr><td>The system must generate SEO metadata for pages</td><td><code>app/layout.tsx</code> defines <code>metadata</code> with <code>metadataBase</code>, <code>title</code>, <code>robots</code>; <code>app/page.tsx</code> has description and openGraph; product and collection pages have <code>generateMetadata</code> functions</td><td>Verified</td></tr>
+<tr><td>The system must support collection/category pages</td><td><code>app/search/[collection]/page.tsx</code> renders products filtered by collection handle; <code>generateMetadata</code> generates collection SEO; <code>components/layout/search/collections.tsx</code> displays collection list</td><td>Verified</td></tr>
+<tr><td>The system must support revalidation API endpoint</td><td><code>app/api/revalidate/route.ts</code> exports <code>POST</code> handler that calls <code>revalidate(req)</code> from <code>lib/shopify</code></td><td>Verified</td></tr>
+<tr><td>The system must validate environment variables</td><td><code>lib/utils.ts</code> <code>validateEnvironmentVariables</code> checks for <code>SHOPIFY_STORE_DOMAIN</code> and <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code>; throws errors if missing or if domain contains brackets</td><td>Verified</td></tr>
+</tbody></table>
+<h2>Business and Domain Rules</h2>
+<table><tbody>
+<tr><td>Rule</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>Products with <code>nextjs-frontend-hidden</code> tag are hidden from search results</td><td><code>lib/constants.ts</code> exports <code>HIDDEN_PRODUCT_TAG = &quot;nextjs-frontend-hidden&quot;</code>; <code>ThreeItemGrid.tsx</code> filters items from <code>hidden-homepage-featured-items</code> collection; product page checks <code>product.tags.includes(HIDDEN_PRODUCT_TAG)</code></td><td>Verified</td></tr>
+<tr><td>Default product option is &quot;Default Title&quot;</td><td><code>lib/constants.ts</code> exports <code>DEFAULT_OPTION = &quot;Default Title&quot;</code></td><td>Verified</td></tr>
+<tr><td>Sorting options available: RELEVANCE, BEST_SELLING, CREATED_AT, PRICE</td><td><code>lib/constants.ts</code> defines <code>SortFilterItem</code> type with `sortKey: &quot;RELEVANCE&quot; \</td><td>&quot;BEST_SELLING&quot; \</td><td>&quot;CREATED_AT&quot; \</td><td>&quot;PRICE&quot;<code>; </code>sorting` array includes these options</td><td>Verified</td></tr>
+<tr><td>Price sorting: Low to high and High to low</td><td><code>lib/constants.ts</code> defines <code>sorting</code> array with <code>PRICE</code> sortKey and <code>reverse: false/true</code></td><td>Verified</td></tr>
+<tr><td>Collections starting with <code>hidden-*</code> are hidden from search page</td><td><code>ThreeItemGrid.tsx</code> comment: &quot;// Collections that start with <code>hidden-*</code> are hidden from the search page.&quot;; <code>app/search/[collection]/page.tsx</code> fetches products by collection handle</td><td>Verified</td></tr>
+<tr><td>Hidden-homepage-featured-items collection provides homepage grid items</td><td><code>components/grid/three-items.tsx</code> fetches <code>hidden-homepage-featured-items</code> collection; requires at least 3 items to render</td><td>Verified</td></tr>
+<tr><td>Product variant selection via URL search params</td><td><code>components/product/variant-selector.tsx</code> reads <code>searchParams</code> and maps option values; <code>components/layout/search/filter/item.tsx</code> uses search params for sort/filter state</td><td>Verified</td></tr>
+<tr><td>Cart persists via cookie <code>cartId</code></td><td><code>components/cart/actions.ts</code> <code>createCartAndSetCookie</code> sets <code>cartId</code> cookie; <code>components/cart/cart-context.tsx</code> uses <code>cartPromise</code> from <code>CartProvider</code></td><td>Verified</td></tr>
+</tbody></table>
+<h2>Interface Requirements</h2>
+<table><tbody>
+<tr><td>Interface</td><td>Required Fields/Behavior</td><td>Evidence</td></tr>
+<tr><td>POST /api/revalidate</td><td>Accepts <code>NextRequest</code>, returns <code>NextResponse</code>; calls <code>revalidate(req)</code> from <code>lib/shopify</code></td><td><code>app/api/revalidate/route.ts</code></td></tr>
+<tr><td>Search form</td><td>POST to <code>/search</code>; input <code>name=&quot;q&quot;</code>; autoComplete=&quot;off&quot;; placeholder &quot;Search for products...&quot;</td><td><code>components/layout/navbar/search.tsx</code></td></tr>
+<tr><td>Product page route</td><td><code>/product/{handle}</code>; handle is product handle parameter</td><td><code>app/product/[handle]/page.tsx</code></td></tr>
+<tr><td>Collection page route</td><td><code>/search/{collection}</code>; collection is collection handle parameter</td><td><code>app/search/[collection]/page.tsx</code></td></tr>
+<tr><td>Product variant selector</td><td>Reads <code>searchParams</code> for option values; supports multiple option selection; disables out-of-stock variants</td><td><code>components/product/variant-selector.tsx</code></td></tr>
+<tr><td>Cart actions</td><td><code>addItem</code>, <code>removeItem</code>, <code>updateItemQuantity</code>, <code>redirectToCheckout</code>, <code>createCartAndSetCookie</code></td><td><code>components/cart/actions.ts</code></td></tr>
+<tr><td>GraphQL API endpoint</td><td><code>/api/2023-01/graphql.json</code>; requires <code>SHOPIFY_STORE_DOMAIN</code> and <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code></td><td><code>lib/constants.ts</code></td></tr>
+<tr><td>SEO metadata generation</td><td><code>generateMetadata</code> functions on <code>app/page.tsx</code>, <code>app/product/[handle]/page.tsx</code>, <code>app/search/[collection]/page.tsx</code>, <code>app/layout.tsx</code>; returns <code>Metadata</code> type</td><td>Multiple <code>generateMetadata</code> functions</td></tr>
+<tr><td>Cart context provider</td><td><code>CartProvider</code> wraps root layout; provides <code>cartPromise</code> and <code>useCart</code> hook</td><td><code>components/cart/cart-context.tsx</code></td></tr>
+</tbody></table>
+<h2>Data Requirements</h2>
+<table><tbody>
+<tr><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>Product entities must have: handle, title, description, priceRange, variants, images, featuredImage, seo</td><td><code>lib/shopify/types.ts</code> defines <code>Product</code> type; <code>app/product/[handle]/page.tsx</code> accesses <code>product.handle</code>, <code>product.title</code>, <code>product.priceRange</code>, <code>product.variants</code>, <code>product.images</code>, <code>product.featuredImage</code>, <code>product.seo</code></td><td>Verified</td></tr>
+<tr><td>Collection entities must have: handle, title, description, seo, updatedAt</td><td><code>lib/shopify/types.ts</code> defines <code>Collection</code> type; <code>app/search/[collection]/page.tsx</code> accesses <code>collection.handle</code>, <code>collection.title</code>, <code>collection.description</code>, <code>collection.seo</code></td><td>Verified</td></tr>
+<tr><td>Cart entities must have: id, checkoutUrl, totalQuantity, lines, cost (subtotalAmount, totalAmount, totalTaxAmount)</td><td><code>components/cart/cart-context.tsx</code> defines <code>createEmptyCart</code>; <code>reshapeCart</code> function in <code>lib/shopify/index.ts</code></td><td>Verified</td></tr>
+<tr><td>SEO metadata fields: title, description, robots (index/follow), openGraph (images, altText, width, height)</td><td><code>lib/shopify/types.ts</code> defines <code>SEO</code> type; <code>app/layout.tsx</code> metadata includes all these fields; product/collection <code>generateMetadata</code> functions populate these fields</td><td>Verified</td></tr>
+<tr><td>Environment variables: SHOPIFY_STORE_DOMAIN, SHOPIFY_STOREFRONT_ACCESS_TOKEN</td><td><code>lib/utils.ts</code> <code>validateEnvironmentVariables</code> requires both; <code>lib/shopify/index.ts</code> uses <code>process.env.SHOPIFY_STORE_DOMAIN</code> and <code>process.env.SHOPIFY_STOREFRONT_ACCESS_TOKEN</code></td><td>Verified</td></tr>
+<tr><td>Cart line items contain: merchandise.id, merchandise.title, quantity, cost (totalAmount, currencyCode)</td><td><code>lib/shopify/types.ts</code> defines <code>CartProduct</code>, <code>CartItem</code>; <code>reshapeCart</code> in <code>lib/shopify/index.ts</code> maps cart data</td><td>Verified</td></tr>
+<tr><td>Product images contain: url, altText</td><td><code>lib/shopify/fragments/image.ts</code> defines image fragment; <code>reshapeImages</code> in <code>lib/shopify/index.ts</code> processes image URLs and altText</td><td>Verified</td></tr>
+<tr><td>Variant selectedOptions contain: option name (lowercased), option value</td><td><code>lib/shopify/types.ts</code> defines <code>ProductVariant</code> with <code>selectedOptions</code>; <code>components/product/variant-selector.tsx</code> maps <code>variant.selectedOptions</code></td><td>Verified</td></tr>
+</tbody></table>
+<h2>Security Requirements</h2>
+<table><tbody>
+<tr><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>SHOPIFY_STORE_DOMAIN must be set and must not contain brackets</td><td><code>lib/utils.ts</code> validates presence and rejects domains with <code>[</code> or <code>]</code></td><td>Verified</td></tr>
+<tr><td>SHOPIFY_STOREFRONT_ACCESS_TOKEN must be set</td><td><code>lib/utils.ts</code> <code>validateEnvironmentVariables</code> requires this variable</td><td>Verified</td></tr>
+<tr><td>GraphQL API calls use store domain and access token</td><td><code>lib/shopify/index.ts</code> constructs endpoint as <code>${domain}${SHOPIFY_GRAPHQL_API_ENDPOINT}</code> with <code>X-Shopify-Storefront-Access-Token</code> header</td><td>Verified</td></tr>
+<tr><td>Error handling distinguishes Shopify errors from other errors</td><td><code>lib/type-guards.ts</code> exports <code>isShopifyError</code> and <code>isObject</code>; <code>shopifyFetch</code> in <code>lib/shopify/index.ts</code> catches and rethrows with appropriate structure</td><td>Verified</td></tr>
+<tr><td>Access token included in GraphQL request headers</td><td><code>lib/shopify/index.ts</code> fetches with <code>X-Shopify-Storefront-Access-Token: key</code> header</td><td>Verified</td></tr>
+</tbody></table>
+<h2>Non-Functional Requirements</h2>
+<table><tbody>
+<tr><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>Framework: Next.js 15 with React 19</td><td><code>package.json</code> specifies <code>&quot;next&quot;: &quot;15.6.0-canary.60&quot;</code>, <code>&quot;react&quot;: &quot;19.0.0&quot;</code>, <code>&quot;react-dom&quot;: &quot;19.0.0&quot;</code></td><td>Verified</td></tr>
+<tr><td>Styling: Tailwind CSS</td><td><code>package.json</code> includes <code>tailwindcss: &quot;^4.0.14&quot;</code>; <code>postcss.config.mjs</code> not read but Tailwind config present; all components use Tailwind class names</td><td>Verified</td></tr>
+<tr><td>Package manager: pnpm</td><td><code>package.json</code> scripts use <code>pnpm prettier:check</code>; lockfile implied</td><td>Verified</td></tr>
+<tr><td>Development: Turbopack</td><td><code>package.json</code> dev script: <code>next dev --turbopack</code></td><td>Verified</td></tr>
+<tr><td>Formatting: Prettier</td><td><code>package.json</code> scripts: <code>prettier</code>, <code>prettier:check</code>; configured for <code>--ignore-unknown .</code></td><td>Verified</td></tr>
+<tr><td>No test infrastructure beyond formatting checks</td><td><code>package.json</code> test script is <code>pnpm prettier:check</code>; no Jest or other test frameworks detected</td><td>Verified</td></tr>
+<tr><td>Vercel-ready deployment</td><td>Environment variable configuration for Shopify integrations; no custom CI detected; relies on Vercel&#x27;s platform</td><td>Verified</td></tr>
+<tr><td>No server-side rendering configuration beyond Next.js defaults</td><td><code>next.config.ts</code> not read but default Next.js config implied; <code>app/</code> directory routing suggests App Router</td><td>Inferred</td></tr>
+<tr><td>Component client/adoptation: Most components use <code>&quot;use client&quot;</code> directive</td><td>Majority of UI components have <code>&quot;use client&quot;</code> at top; layout and some utilities are server components</td><td>Verified</td></tr>
+</tbody></table>
+<h2>Operational and Deployment Requirements</h2>
+<table><tbody>
+<tr><td>Requirement</td><td>Evidence</td><td>Certainty</td></tr>
+<tr><td>Environment variables required: SHOPIFY_STORE_DOMAIN, SHOPIFY_STOREFRONT_ACCESS_TOKEN</td><td><code>lib/utils.ts</code> validates these; missing variables cause app startup failure</td><td>Verified</td></tr>
+<tr><td>Next.js configuration via next.config.ts</td><td>Repository has <code>next.config.ts</code> file; standard Next.js configuration</td><td>Verified</td></tr>
+<tr><td>Build script: <code>next build</code></td><td><code>package.json</code> scripts include <code>&quot;build&quot;: &quot;next build&quot;</code></td><td>Verified</td></tr>
+<tr><td>Start script: <code>next start</code></td><td><code>package.json</code> scripts include <code>&quot;start&quot;: &quot;next start&quot;</code></td><td>Verified</td></tr>
+<tr><td>Dev script: <code>next dev --turbopack</code></td><td><code>package.json</code> scripts include <code>&quot;dev&quot;: &quot;next dev --turbopack&quot;</code></td><td>Verified</td></tr>
+<tr><td>Prettier check: <code>pnpm prettier:check</code></td><td><code>package.json</code> scripts include <code>&quot;test&quot;: &quot;pnpm prettier:check&quot;</code></td><td>Verified</td></tr>
+<tr><td>No explicit CI/CD configuration detected</td><td>Only <code>prettier:check</code> script; no GitHub Actions, Jenkins, etc.</td><td>Verified</td></tr>
+<tr><td>Shopify API version: 2023-01</td><td><code>lib/constants.ts</code> exports <code>SHOPIFY_GRAPHQL_API_ENDPOINT = &quot;/api/2023-01/graphql.json&quot;</code></td><td>Verified</td></tr>
+<tr><td>Default API route: <code>/api/2023-01/graphql.json</code></td><td>Confirmed in constants and shopify fetch implementation</td><td>Verified</td></tr>
+<tr><td>Root layout: <code>app/layout.tsx</code></td><td>Single <code>app/layout.tsx</code> serves as root; wraps children with <code>CartProvider</code></td><td>Verified</td></tr>
+<tr><td>API routes under <code>app/api/</code>: <code>route.ts</code></td><td>Only <code>app/api/revalidate/route.ts</code> present</td><td>Verified</td></tr>
+<tr><td>No middleware detected</td><td>No <code>midware</code> or <code>next/config/middleware</code> files present</td><td>Verified</td></tr>
+<tr><td>App Router routing: <code>app/</code> directory</td><td>All routes under <code>app/</code> directory indicating Next.js 13+ App Router</td><td>Verified</td></tr>
+</tbody></table>
+<h2>Summary of Certainty Levels</h2>
+<p><strong>Verified requirements</strong>: Directly evidenced by executable code and configuration artifacts. These include functional behaviors, validation rules, interface contracts, data schemas, environment variable requirements, and framework versions.</p>
+<p><strong>Inferred requirements</strong>: Necessary or strongly implied by multiple implementation artifacts. These include sorting/filtering behavior, cart state management, SEO metadata patterns, and deployment scripts.</p>
+<p><strong>Uncertain requirements</strong>: Not explicitly confirmed. The repository does not contain sufficient evidence for uncertainty classifications beyond what&#x27;s verified or inferred.</p>
+<h2>Important Notes</h2>
+<p>1. The system is an e-commerce front-end with Shopify integration; backend cart and checkout logic resides in Shopify, not this repository.</p>
+<p>2. Products marked with <code>nextjs-frontend-hidden</code> tag are hidden from search results but may still be accessible via direct URL.</p>
+<p>3. The <code>hidden-homepage-featured-items</code> collection must contain at least 3 items for the homepage grid to render; otherwise <code>ThreeItemGrid</code> returns <code>null</code>.</p>
+<p>4. Environment variable validation occurs at runtime; missing variables cause the application to fail on startup.</p>
+<p>5. The system uses Next.js App Router with server and client components demarcated by <code>&quot;use client&quot;</code> directives.</p>
+<p>6. No automated testing framework exists beyond Prettier formatting checks.</p>
+</main>
+</body>
+</html>
