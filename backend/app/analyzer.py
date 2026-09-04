@@ -13,6 +13,7 @@ from .phase_intelligence import build_phase_intelligence
 from .renderer import render_analysis
 from .repository_intelligence import RepositoryIntelligence, collect_repository_intelligence
 from .resource_diagnostics import ResourceDiagnostics
+from .semantic_research import run_phase_research, run_repository_research, write_research_artifact
 
 PHASES = [
     ("business-purpose", "Business Purpose"),
@@ -38,7 +39,19 @@ def _repository_size_limit_error() -> ValueError:
     )
 
 
-def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_intelligence: str, output_run_dir: Path, run_id: str, provider: str, model: str, api_key: str, diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None) -> dict:
+def _run_single_phase(
+    phase_key: str,
+    phase_name: str,
+    repository: Path,
+    phase_intelligence: str,
+    output_run_dir: Path,
+    run_id: str,
+    provider: str,
+    model: str,
+    api_key: str,
+    diagnostics: Optional[ResourceDiagnostics] = None,
+    batch_index: Optional[int] = None,
+) -> dict:
     if diagnostics:
         diagnostics.phase_start(phase_key, phase_name, batch_index=batch_index)
     try:
@@ -74,13 +87,38 @@ def _phase_failure(phase_key: str, phase_name: str, exc: Exception) -> dict:
     return {"phase": phase_key, "phase_name": phase_name, "error_type": type(exc).__name__, "error": str(exc)}
 
 
-def _run_batch(batch: list[tuple[str, str]], repository: Path, phase_packages: dict[str, str], output_run_dir: Path, run_id: str, on_phase_complete: Optional[PhaseCompleteCallback] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: str = "", diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None) -> tuple[dict, list[dict]]:
+def _run_batch(
+    batch: list[tuple[str, str]],
+    repository: Path,
+    phase_packages: dict[str, str],
+    output_run_dir: Path,
+    run_id: str,
+    on_phase_complete: Optional[PhaseCompleteCallback] = None,
+    provider: str = "openrouter",
+    model: str = "openrouter/free",
+    api_key: str = "",
+    diagnostics: Optional[ResourceDiagnostics] = None,
+    batch_index: Optional[int] = None,
+) -> tuple[dict, list[dict]]:
     batch_results: dict[str, dict] = {}
     batch_failures: list[dict] = []
     phase_by_future = {}
     with ThreadPoolExecutor(max_workers=len(batch)) as executor:
         for key, name in batch:
-            future = executor.submit(_run_single_phase, key, name, repository, phase_packages[key], output_run_dir, run_id, provider, model, api_key, diagnostics, batch_index)
+            future = executor.submit(
+                _run_single_phase,
+                key,
+                name,
+                repository,
+                phase_packages[key],
+                output_run_dir,
+                run_id,
+                provider,
+                model,
+                api_key,
+                diagnostics,
+                batch_index,
+            )
             phase_by_future[future] = (key, name)
         for future in as_completed(phase_by_future):
             key, name = phase_by_future[future]
@@ -94,7 +132,31 @@ def _run_batch(batch: list[tuple[str, str]], repository: Path, phase_packages: d
     return batch_results, batch_failures
 
 
-def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_per_batch, number_of_batches: Optional[int] = None, batch_mode: str = settings.batch_mode, on_phase_complete: Optional[PhaseCompleteCallback] = None, selected_phases: Optional[list[str]] = None, work_id: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> dict:
+def _phase_context(phase: str, deterministic: str, repository_research: str, phase_research: str) -> str:
+    """Combine evidence and upstream reasoning without making the reasoning authoritative."""
+    return "\n\n".join([
+        deterministic,
+        "UPSTREAM SEMANTIC RESEARCH BRIEF (NAVIGATION AID — NOT AUTHORITATIVE EVIDENCE)",
+        "Use this brief to prioritize investigation and formulate hypotheses. Do not treat it as verified. Material claims must be checked against repository source before entering final documentation.",
+        repository_research,
+        f"PHASE-SPECIFIC SEMANTIC RESEARCH BRIEF FOR {phase} (NAVIGATION AID — NOT AUTHORITATIVE EVIDENCE)",
+        "Use the prioritized files, symbols, and searches below to perform targeted source verification. Do not skip material repository inspection merely because a hypothesis is stated here.",
+        phase_research,
+    ])
+
+
+def analyze_repository(
+    repo_url: str,
+    phases_per_batch: int = settings.phases_per_batch,
+    number_of_batches: Optional[int] = None,
+    batch_mode: str = settings.batch_mode,
+    on_phase_complete: Optional[PhaseCompleteCallback] = None,
+    selected_phases: Optional[list[str]] = None,
+    work_id: Optional[str] = None,
+    provider: str = "openrouter",
+    model: str = "openrouter/free",
+    api_key: Optional[str] = None,
+) -> dict:
     if not repo_url or not repo_url.strip():
         raise ValueError("repo_url cannot be empty")
     provider = (provider or "").strip().lower()
@@ -138,9 +200,22 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     diagnostics_dir = Path(settings.resource_diagnostics_dir)
     if not diagnostics_dir.is_absolute():
         diagnostics_dir = output_run_dir / diagnostics_dir
-    diagnostics = ResourceDiagnostics(enabled=settings.resource_diagnostics_enabled, output_dir=diagnostics_dir, sample_interval_seconds=settings.resource_diagnostics_interval_seconds, run_id=run_id)
+    diagnostics = ResourceDiagnostics(
+        enabled=settings.resource_diagnostics_enabled,
+        output_dir=diagnostics_dir,
+        sample_interval_seconds=settings.resource_diagnostics_interval_seconds,
+        run_id=run_id,
+    )
     diagnostics.start()
-    diagnostics.run_event("analysis_started", selected_phases=selected_ids, phases_per_batch=phases_per_batch, batch_mode=batch_mode, batch_count=len(batches), provider=provider, model=model)
+    diagnostics.run_event(
+        "analysis_started",
+        selected_phases=selected_ids,
+        phases_per_batch=phases_per_batch,
+        batch_mode=batch_mode,
+        batch_count=len(batches),
+        provider=provider,
+        model=model,
+    )
 
     results: dict[str, dict] = {}
     failures: list[dict] = []
@@ -160,20 +235,116 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
             if size_bytes > max_bytes:
                 raise _repository_size_limit_error()
             diagnostics.run_event("repository_cloned", repository=str(repository), repository_size_bytes=size_bytes)
+
+            # Phase 0: deterministic facts remain LLM-free and auditable.
             intelligence: RepositoryIntelligence = collect_repository_intelligence(repository)
             diagnostics.run_event("repository_intelligence_collected", files_considered=intelligence.file_count)
-            phase_packages = {key: build_phase_intelligence(intelligence, key) for key in selected_ids}
+
+            # Phase 1: exactly one LLM request builds a repository-wide semantic map.
+            diagnostics.run_event("repository_research_started")
+            repository_research = run_repository_research(
+                intelligence=intelligence,
+                provider=provider,
+                model=model,
+                api_key=api_key,
+            )
+            write_research_artifact(
+                output_run_dir / "repository-research.md",
+                kind="repository",
+                phase=None,
+                content=repository_research,
+            )
+            diagnostics.run_event("repository_research_completed", output_chars=len(repository_research), llm_requests=1)
+
+            deterministic_phase_packages = {key: build_phase_intelligence(intelligence, key) for key in selected_ids}
+
+            # Phase 2: one specialized LLM request per selected phase. These can run in parallel.
+            phase_research: dict[str, str] = {}
+            diagnostics.run_event("phase_research_started", phase_count=len(selected_ids), expected_llm_requests=len(selected_ids))
+            with ThreadPoolExecutor(max_workers=max(1, len(selected_ids))) as executor:
+                futures = {
+                    executor.submit(
+                        run_phase_research,
+                        phase=key,
+                        phase_intelligence=deterministic_phase_packages[key],
+                        repository_research=repository_research,
+                        provider=provider,
+                        model=model,
+                        api_key=api_key,
+                    ): key
+                    for key in selected_ids
+                }
+                for future in as_completed(futures):
+                    key = futures[future]
+                    phase_research[key] = future.result()
+                    write_research_artifact(
+                        output_run_dir / key / "phase-research.md",
+                        kind="phase",
+                        phase=key,
+                        content=phase_research[key],
+                    )
+                    diagnostics.run_event(
+                        "phase_research_completed",
+                        phase=key,
+                        output_chars=len(phase_research[key]),
+                        llm_requests=1,
+                    )
+
+            # Phase 3: normal agents receive facts + both research layers in their first prompt.
+            phase_packages = {
+                key: _phase_context(
+                    key,
+                    deterministic_phase_packages[key],
+                    repository_research,
+                    phase_research[key],
+                )
+                for key in selected_ids
+            }
+            diagnostics.run_event(
+                "semantic_context_ready",
+                repository_research_chars=len(repository_research),
+                phase_research_chars={key: len(value) for key, value in phase_research.items()},
+                expected_upfront_llm_requests=1 + len(selected_ids),
+            )
 
             if batch_mode == "parallel":
                 with ThreadPoolExecutor(max_workers=len(batches)) as executor:
-                    futures = {executor.submit(_run_batch, batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index): index for index, batch in enumerate(batches, start=1)}
+                    futures = {
+                        executor.submit(
+                            _run_batch,
+                            batch,
+                            repository,
+                            phase_packages,
+                            output_run_dir,
+                            run_id,
+                            on_phase_complete,
+                            provider,
+                            model,
+                            api_key,
+                            diagnostics,
+                            index,
+                        ): index
+                        for index, batch in enumerate(batches, start=1)
+                    }
                     for future in as_completed(futures):
                         batch_results, batch_failures = future.result()
                         results.update(batch_results)
                         failures.extend(batch_failures)
             else:
                 for index, batch in enumerate(batches, start=1):
-                    batch_results, batch_failures = _run_batch(batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index)
+                    batch_results, batch_failures = _run_batch(
+                        batch,
+                        repository,
+                        phase_packages,
+                        output_run_dir,
+                        run_id,
+                        on_phase_complete,
+                        provider,
+                        model,
+                        api_key,
+                        diagnostics,
+                        index,
+                    )
                     results.update(batch_results)
                     failures.extend(batch_failures)
 
