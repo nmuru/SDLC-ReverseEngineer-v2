@@ -7,20 +7,21 @@ and verification briefs for the downstream phase agents.
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from openai import AsyncOpenAI
 
-from .phase_intelligence import build_phase_intelligence
 from .repository_intelligence import RepositoryIntelligence
 
 logger = logging.getLogger(__name__)
 
-RESEARCH_VERSION = "1"
+RESEARCH_VERSION = "2"
 MAX_RESEARCH_INPUT_CHARS = 120_000
 MAX_PHASE_INPUT_CHARS = 100_000
+MAX_REASONING_FALLBACK_CHARS = 60_000
 
 
 def _provider_base_url(provider: str) -> str:
@@ -116,6 +117,75 @@ def _phase_prompt(phase: str) -> str:
     )
 
 
+def _extract_message_content(response: Any) -> str | None:
+    """Extract assistant text across OpenAI-compatible response variants."""
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        return None
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        return None
+
+    content = getattr(message, "content", None)
+    if isinstance(content, str) and content.strip():
+        return content.strip()
+
+    # Some reasoning-capable OpenAI-compatible endpoints return content as a list
+    # of text objects rather than a single string.
+    if isinstance(content, list):
+        parts: list[str] = []
+        for item in content:
+            if isinstance(item, str):
+                parts.append(item)
+                continue
+            if isinstance(item, dict):
+                text = item.get("text")
+                if isinstance(text, str):
+                    parts.append(text)
+                continue
+            text = getattr(item, "text", None)
+            if isinstance(text, str):
+                parts.append(text)
+        joined = "".join(parts).strip()
+        if joined:
+            return joined
+
+    # A few providers expose the generated answer through an output_text-like field.
+    output_text = getattr(message, "output_text", None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+    return None
+
+
+def _extract_reasoning_fallback(response: Any) -> str | None:
+    """Return reasoning only as a bounded diagnostic fallback, never as verified facts."""
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        return None
+    message = getattr(choices[0], "message", None)
+    if message is None:
+        return None
+
+    for name in ("reasoning", "reasoning_content", "analysis"):
+        value = getattr(message, name, None)
+        if isinstance(value, str) and value.strip():
+            return _clip(value.strip(), MAX_REASONING_FALLBACK_CHARS)
+    return None
+
+
+def _response_diagnostics(response: Any) -> dict[str, Any]:
+    choices = getattr(response, "choices", None) or []
+    if not choices:
+        return {"choices": 0}
+    message = getattr(choices[0], "message", None)
+    return {
+        "choices": len(choices),
+        "finish_reason": getattr(choices[0], "finish_reason", None),
+        "message_content_type": type(getattr(message, "content", None)).__name__ if message else None,
+        "has_reasoning": bool(message and any(getattr(message, name, None) for name in ("reasoning", "reasoning_content", "analysis"))),
+    }
+
+
 async def _one_shot_chat(*, provider: str, model: str, api_key: str, system_prompt: str, user_prompt: str) -> str:
     client = AsyncOpenAI(base_url=_provider_base_url(provider), api_key=api_key.strip())
     response = await client.chat.completions.create(
@@ -123,10 +193,23 @@ async def _one_shot_chat(*, provider: str, model: str, api_key: str, system_prom
         messages=[{"role": "system", "content": system_prompt}, {"role": "user", "content": user_prompt}],
         temperature=0.1,
     )
-    content = response.choices[0].message.content if response.choices else None
-    if not content or not content.strip():
-        raise RuntimeError("Research LLM returned an empty response")
-    return content.strip()
+    content = _extract_message_content(response)
+    diagnostics = _response_diagnostics(response)
+    logger.info("SEMANTIC_RESEARCH response model=%s provider=%s diagnostics=%s", model, provider, diagnostics)
+    if content:
+        return content
+
+    reasoning = _extract_reasoning_fallback(response)
+    if reasoning:
+        logger.warning("SEMANTIC_RESEARCH model returned reasoning without answer; failing closed instead of treating reasoning as the research brief")
+        raise RuntimeError(
+            "Research LLM returned reasoning but no final answer. "
+            f"finish_reason={diagnostics.get('finish_reason')}; reasoning_chars={len(reasoning)}"
+        )
+    raise RuntimeError(
+        "Research LLM returned an empty response. "
+        f"finish_reason={diagnostics.get('finish_reason')}; response_diagnostics={json.dumps(diagnostics, default=str)}"
+    )
 
 
 def run_repository_research(*, intelligence: RepositoryIntelligence, provider: str, model: str, api_key: str) -> str:
@@ -163,7 +246,9 @@ The repository research brief is upstream reasoning, not authoritative evidence.
 
 Do not encourage the downstream agent to skip repository inspection. Instead, make its first inspections highly targeted. For each material hypothesis, name the exact file/symbol/search target that can confirm or reject it. Flag unsupported assumptions explicitly.
 
-The downstream agent must verify material claims against repository source before including them in the final artifact.""",
+The downstream agent must verify material claims against repository source before including them in the final artifact.
+
+A final answer is REQUIRED. Do not stop after internal reasoning. Return the research brief itself as the assistant answer, even if some sections are uncertain.""",
         user_prompt=user_prompt,
     ))
 

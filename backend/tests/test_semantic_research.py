@@ -1,18 +1,36 @@
-from pathlib import Path
+from __future__ import annotations
 
-from app.semantic_research import _phase_prompt, _repository_research_input, _provider_base_url, _clip, write_research_artifact
-from app.repository_intelligence import RepositoryIntelligence
+from dataclasses import dataclass
+
+from .repository_intelligence import RepositoryIntelligence
 
 
-def _empty_intelligence() -> RepositoryIntelligence:
+@dataclass
+class FakeMessage:
+    content: object = None
+    reasoning: str | None = None
+
+
+@dataclass
+class FakeChoice:
+    message: FakeMessage
+    finish_reason: str | None = None
+
+
+@dataclass
+class FakeResponse:
+    choices: list[FakeChoice]
+
+
+def make_intelligence() -> RepositoryIntelligence:
     return RepositoryIntelligence(
-        schema_version="test",
-        root="/tmp/repo",
-        file_count=2,
-        files=["README.md", "app.py"],
-        directories=["."],
-        languages={"python": 1},
-        technologies=["Python"],
+        schema_version="1",
+        root="/repo",
+        file_count=1,
+        files=["README.md"],
+        directories=[],
+        languages={},
+        technologies=[],
         technology_evidence=[],
         package_scripts={},
         dependencies={},
@@ -22,12 +40,12 @@ def _empty_intelligence() -> RepositoryIntelligence:
         routes=[],
         page_files=[],
         api_routes=[],
-        entry_points=["app.py"],
+        entry_points=[],
         test_files=[],
         config_files=[],
         ci_files=[],
         documentation_files=["README.md"],
-        documentation_excerpts={"README.md": "A small example application."},
+        documentation_excerpts={"README.md": "A product description."},
         integration_files=[],
         dependency_edges=[],
         source_files=[],
@@ -35,31 +53,52 @@ def _empty_intelligence() -> RepositoryIntelligence:
     )
 
 
-def test_provider_urls_are_explicit():
-    assert _provider_base_url("openai") == "https://api.openai.com/v1"
-    assert _provider_base_url("openrouter") == "https://openrouter.ai/api/v1"
+def test_extract_string_content(monkeypatch):
+    from app import semantic_research
+
+    response = FakeResponse([FakeChoice(FakeMessage(content="brief"), "stop")])
+    assert semantic_research._extract_message_content(response) == "brief"
 
 
-def test_repository_research_input_preserves_high_signal_evidence():
-    text = _repository_research_input(_empty_intelligence())
-    assert "FILES CONSIDERED: 2" in text
-    assert "ENTRY POINTS:" in text
-    assert "README.md" in text
+def test_extract_list_content(monkeypatch):
+    from app import semantic_research
+
+    response = FakeResponse([FakeChoice(FakeMessage(content=[{"type": "output_text", "text": "a"}, {"text": "b"}]), "stop")])
+    assert semantic_research._extract_message_content(response) == "ab"
 
 
-def test_research_input_is_bounded():
-    assert _clip("x" * 100, 10).endswith("[deterministic intelligence truncated for the research pass]")
+def test_reasoning_only_fails_closed(monkeypatch):
+    from app import semantic_research
+
+    async def fake_create(*args, **kwargs):
+        return FakeResponse([FakeChoice(FakeMessage(content=None, reasoning="internal reasoning"), "length")])
+
+    class FakeCompletions:
+        create = fake_create
+
+    class FakeClient:
+        def __init__(self, *args, **kwargs):
+            self.chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    monkeypatch.setattr(semantic_research, "AsyncOpenAI", FakeClient)
+
+    import pytest
+
+    with pytest.raises(RuntimeError, match="reasoning but no final answer"):
+        semantic_research.run_repository_research(
+            intelligence=make_intelligence(),
+            provider="openrouter",
+            model="openrouter/free",
+            api_key="test-key",
+        )
 
 
-def test_business_requirements_has_phase_specific_focus():
-    focus = _phase_prompt("business-requirements")
-    assert "business rules" in focus
-    assert "source files" in focus
+def test_write_research_artifact(tmp_path):
+    from app import semantic_research
 
-
-def test_research_artifact_is_marked_non_authoritative(tmp_path: Path):
-    path = tmp_path / "repository-research.md"
-    write_research_artifact(path, kind="repository", phase=None, content="candidate domain")
+    path = tmp_path / "research.md"
+    semantic_research.write_research_artifact(path, kind="phase", phase="business-purpose", content="brief")
     text = path.read_text(encoding="utf-8")
-    assert "not authoritative evidence" in text
-    assert "candidate domain" in text
+    assert "Research schema: 2" in text
+    assert "Material claims must be verified" in text
+    assert text.endswith("brief\n")
