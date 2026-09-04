@@ -1,7 +1,6 @@
 ---
 name: agent
 description: Evidence-driven, read-only SDLC reverse-engineering agent runtime contract.
- 
 ---
 
 # Role

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>business-purpose</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<h1>Business Purpose Analysis</h1>
+<h2>Purpose Model Classification</h2>
+<p>This repository fits the <strong>commerce storefront template</strong> model. It is a pre-built, headless e-commerce storefront designed to be deployed by merchants and customized to their brand. It is neither a finished enterprise application serving a specific retailer&#x27;s known customers nor a research or experimental artifact; it is a reusable, configurable starting point for an online store.</p>
+<h2>Stated Intent vs. Implemented Behavior</h2>
+<p>The implementation centers on a Next.js (App Router) application that integrates with Shopify through the Storefront API. Key implementation signals include:</p>
+<ul>
+<li><code>lib/shopify/</code> containing a GraphQL client, queries (product, collection, menu, page, cart), mutations (cart), fragments (product, cart, image, seo), and TypeScript types. This is a Shopify Storefront API integration, not a generic CMS.</li>
+<li>Product browsing features: collections, product detail pages with variant selection, product descriptions, image galleries, labels, and pricing components.</li>
+<li>Cart capabilities: add-to-cart, quantity editing, line-item deletion, a cart modal, and cart context for client-side state.</li>
+<li>Site navigation and merchandising: a navbar with mobile menu, search across products and collections, and faceted filtering (dropdowns, filter items, filter index).</li>
+<li>App Router pages for product, collection, search, and an <code>app/api/revalidate</code> route for webhook-driven content invalidation.</li>
+<li><code>components/opengraph-image.tsx</code> and SEO fragments indicating social/SEO metadata generation.</li>
+<li>A <code>prettier</code>/<code>prettier:check</code> script and a <code>pnpm prettier:check</code> test script, with no unit or integration tests beyond formatting.</li>
+</ul>
+<p>The behavior is consistent with the stated intent of a Shopify-powered commerce frontend: merchandising, browsing, search, cart management, and content revalidation. There is no checkout implementation because checkout is intentionally delegated to Shopify; there is no admin back-office, no order management, no customer account flows beyond cart, and no analytics or marketing automation beyond metadata rendering.</p>
+<h2>Motivating Need and Intended Outcome</h2>
+<p>The repository exists to satisfy a recurring need among Shopify merchants and the broader Next.js community: a modern, fast, customizable storefront frontend that is decoupled from Shopify&#x27;s Liquid themes. The motivating need is to provide a production-ready storefront starter that:</p>
+<ul>
+<li>Demonstrates idiomatic Next.js App Router patterns for commerce.</li>
+<li>Implements the complete shopper-side lifecycle: discovery (collections, search, filters), evaluation (product pages, variants, descriptions, images), and intent capture (cart).</li>
+<li>Delegates commerce-critical responsibilities — checkout, order processing, payments, inventory — to Shopify through the Storefront API and webhooks.</li>
+<li>Offers a clean component structure that merchants or agencies can rebrand and extend.</li>
+</ul>
+<p>The intended outcome for the consumer (the merchant or developer deploying it) is a storefront they can put in front of shoppers quickly, with predictable performance characteristics from Next.js and the safety of letting Shopify remain the system of record for catalog, cart, checkout, and order state.</p>
+<h2>Beneficiaries and Audiences</h2>
+<p>There are two audiences, distinct from each other:</p>
+<ul>
+<li><strong>Merchants and the agencies/developers who build for them</strong> are the primary beneficiaries. They receive a working frontend they can configure, brand, and deploy without building a Shopify integration from scratch.</li>
+<li><strong>Shoppers</strong> are the secondary, indirect beneficiaries. They are the end users who browse, search, view product details, and manage a cart on the resulting store.</li>
+</ul>
+<p>The operator (the merchant or developer deploying the site) and the end beneficiary (the shopper) are different parties, and the repository is optimized around giving the operator a fast path to launch while giving the shopper a conventional commerce experience.</p>
+<h2>Representative Workflow</h2>
+<p>A representative workflow traces the motivating need concretely:</p>
+<p>1. A shopper arrives on a collection page rendered by Next.js from data fetched through the Shopify Storefront API.</p>
+<p>2. The shopper navigates via the navbar or uses search, optionally narrowing results with the filter UI.</p>
+<p>3. The shopper opens a product detail page, selects a variant, and adds it to the cart through the cart context.</p>
+<p>4. Shopify returns the updated cart; the modal reflects the line items, and the shopper can edit quantities or remove items.</p>
+<p>5. Final checkout is handed off to Shopify (out of scope for this repository).</p>
+<p>6. When catalog or content changes occur in Shopify, a webhook hits <code>app/api/revalidate</code> to refresh Next.js&#x27;s cached pages.</p>
+<p>This sequence makes the purpose concrete: provide the shopper-facing surface for a Shopify store while leaving commerce operations to Shopify itself.</p>
+<h2>What Would Be Missing Without This Software</h2>
+<p>Without this repository, a developer building a Next.js + Shopify storefront would have to write the Storefront API client, GraphQL queries and fragments, the cart context, variant handling, search/filter UI, navigation, SEO and OpenGraph generation, and the revalidation webhook handler from scratch — repeating work that is common across many Shopify storefront projects. The repository centralizes that work into a known starting point.</p>
+<h2>Certainty and Limitations</h2>
+<ul>
+<li><strong>Verified:</strong> The repository is a Next.js (App Router, TypeScript, Tailwind) frontend wired to Shopify through the Storefront API, supporting browsing, product detail, search, filtering, cart management, SEO/OpenGraph, and content revalidation.</li>
+<li><strong>Strongly inferred:</strong> The repository is intended as a reusable storefront template/starter rather than the storefront of a specific merchant; the absence of merchant-specific branding, product data fixtures, checkout, accounts, and order history supports this.</li>
+<li><strong>Partial/unknown:</strong> The specific upstream brand or sponsor that originated the template cannot be reconstructed from the repository alone. README content was not present in the deterministic intelligence gathered, so any branding, slogan, or sponsor identity from that source is not asserted here. The history of the project, its release cadence, and any commercial offering built on top of it are also not reconstructible from the repository.</li>
+<li><strong>Disclosed limitation:</strong> Because no automated test suite is present beyond a Prettier check, the &quot;production-ready&quot; framing relies on implementation completeness and the maturity of the patterns used rather than on an executable verification artifact within the repo.</li>
+</ul>
+<h2>Primary Purpose Statement</h2>
+<p>The repository exists to provide a high-quality, customizable Next.js storefront starter that integrates with the Shopify Storefront API, enabling merchants and developers to launch a branded headless commerce frontend quickly while delegating catalog, cart persistence, and checkout to Shopify, and to give shoppers a modern, fast browsing, search, and cart experience on top of that integration.</p>
+</main>
+</body>
+</html>
