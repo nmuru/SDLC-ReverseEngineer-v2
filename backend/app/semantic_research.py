@@ -76,7 +76,17 @@ REPOSITORY_RESEARCH_PROMPT = """You are the semantic reconnaissance planner for 
 
 You receive deterministic repository intelligence. It contains machine-derived facts and provenance. Produce a concise RESEARCH BRIEF, not final SDLC documentation.
 
-Your job is to construct the semantic map that downstream SDLC phases can use to explore intelligently. Infer cautiously from the evidence. Never present an inference as a verified fact.
+Your job is to construct a compact semantic map that downstream SDLC phases can use to explore intelligently. Infer cautiously from the evidence. Never present an inference as a verified fact.
+
+OUTPUT DISCIPLINE IS CRITICAL:
+- Target 1,000-1,500 words; hard ceiling 2,000 words.
+- Do not narrate your reasoning, investigation process, or internal deliberation.
+- Do not enumerate the repository. Never list files one-by-one merely because they exist.
+- Do not repeat the same file, verification instruction, or hypothesis across sections.
+- Do not write statements such as "need to verify" for every file. Verification targets belong only in the prioritized target sections.
+- Prefer a few high-value evidence chains over exhaustive coverage. Compress abundant evidence into representative examples.
+- Maximum 10 highest-value files/areas, 10 targeted searches, 6 ambiguities, and 6 cross-phase priorities.
+- If evidence is insufficient, say so briefly; do not compensate with more prose.
 
 The brief MUST contain these sections:
 1. Repository identity and likely product/domain
@@ -90,9 +100,11 @@ The brief MUST contain these sections:
 9. Ambiguities, contradictions, and unsupported assumptions to avoid
 10. Cross-phase investigation priorities
 
-For every material hypothesis, include supporting file paths where available and a confidence label (high/medium/low). Prioritize a small number of high-value investigation targets over exhaustive file lists.
+For every material hypothesis, include supporting file paths where available and a confidence label (high/medium/low). Keep evidence chains short: identify the claim, the strongest supporting path(s), and why those paths matter. Prioritize a small number of high-value investigation targets over exhaustive file lists.
 
-This brief is a navigation aid. It must explicitly tell downstream agents to verify material claims in source before using them in final documentation."""
+This brief is a navigation aid. It must explicitly tell downstream agents to verify material claims in source before using them in final documentation.
+
+When the input contains many similar or repetitive paths, summarize the pattern and name only the most representative/high-value paths. Your usefulness comes from prioritization and synthesis, not volume."""
 
 
 PHASE_RESEARCH_PROMPTS = {
@@ -130,8 +142,6 @@ def _extract_message_content(response: Any) -> str | None:
     if isinstance(content, str) and content.strip():
         return content.strip()
 
-    # Some reasoning-capable OpenAI-compatible endpoints return content as a list
-    # of text objects rather than a single string.
     if isinstance(content, list):
         parts: list[str] = []
         for item in content:
@@ -150,7 +160,6 @@ def _extract_message_content(response: Any) -> str | None:
         if joined:
             return joined
 
-    # A few providers expose the generated answer through an output_text-like field.
     output_text = getattr(message, "output_text", None)
     if isinstance(output_text, str) and output_text.strip():
         return output_text.strip()
@@ -236,7 +245,7 @@ def run_phase_research(*, phase: str, phase_intelligence: str, repository_resear
         "REPOSITORY-LEVEL RESEARCH BRIEF:\n" + repository_research
         + "\n\nDETERMINISTIC PHASE INTELLIGENCE:\n" + phase_intelligence
         + "\n\nPHASE FOCUS:\n" + _phase_prompt(phase)
-        + "\n\nProduce a phase research brief. Do not write final documentation. Include: (a) candidate findings, (b) evidence chains with file paths/symbols, (c) prioritized files to inspect, (d) targeted searches, (e) verification obligations, and (f) ambiguities/unknowns. Clearly label hypotheses and confidence.",
+        + "\n\nProduce a concise phase research brief, not final documentation. Target 800-1,200 words and never exceed 1,800 words. Do not narrate reasoning. Do not enumerate files or repeat verification obligations. Include only the highest-value candidate findings, short evidence chains, prioritized files/symbols, targeted searches, verification obligations, and ambiguities. Maximum 8 prioritized files, 8 searches, 6 verification obligations, and 6 ambiguities. If many files support the same point, name representative paths rather than listing them all. Clearly label hypotheses and confidence. The goal is to reduce downstream exploration, not to describe the entire repository.",
         MAX_PHASE_INPUT_CHARS,
     )
     return asyncio.run(_one_shot_chat(
@@ -245,13 +254,15 @@ def run_phase_research(*, phase: str, phase_intelligence: str, repository_resear
         api_key=api_key,
         system_prompt="""You are the phase-specific semantic research planner in an evidence-driven SDLC reverse-engineering pipeline.
 
-The repository research brief is upstream reasoning, not authoritative evidence. Deterministic intelligence is machine-derived evidence, but it can still be incomplete. Your output is a navigation and verification brief, never final documentation.
+The repository research brief is upstream reasoning, not authoritative evidence. Deterministic intelligence is machine-derived evidence, but it can still be incomplete. Your output is a compact navigation and verification brief, never final documentation.
 
 Do not encourage the downstream agent to skip repository inspection. Instead, make its first inspections highly targeted. For each material hypothesis, name the exact file/symbol/search target that can confirm or reject it. Flag unsupported assumptions explicitly.
 
+OUTPUT DISCIPLINE IS CRITICAL. Target 800-1,200 words and never exceed 1,800 words. Do not produce chain-of-thought, process narration, exhaustive file inventories, repeated "need to verify" statements, or one verification instruction per file. Select only the highest-value evidence and compress repetitive findings. If the evidence is broad, summarize patterns and cite representative paths. A short, high-signal brief is better than an exhaustive one.
+
 The downstream agent must verify material claims against repository source before including them in the final artifact.
 
-A final answer is REQUIRED. Do not stop after internal reasoning. Return the research brief itself as the assistant answer, even if some sections are uncertain.""",
+A final answer is REQUIRED. Do not stop after internal reasoning. Return the compact research brief itself as the assistant answer, even if some sections are uncertain.""",
         user_prompt=user_prompt,
     ))
 
