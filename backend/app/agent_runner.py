@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import os
 import shutil
 import subprocess
 import time
@@ -13,8 +14,12 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from agents import Agent, Runner, RunHooks, function_tool
+from agents import RunHooks, Runner, SandboxAgent
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
+from agents.run import RunConfig
+from agents.sandbox import Manifest, SandboxAgent, SandboxPathGrant, SandboxRunConfig
+from agents.sandbox.capabilities import Capabilities, LocalDirLazySkillSource, Skills
+from agents.sandbox.entries import LocalDir
 from openai import AsyncOpenAI
 
 from .config import settings
@@ -95,74 +100,6 @@ def _read_agent_definition(phase: str) -> str:
     return ""
 
 
-def _read_skill(phase: str) -> str:
-    """Load the complete phase skill eagerly, as in the current implementation."""
-    if not SKILLS_SOURCE.exists():
-        return ""
-    candidates = [SKILLS_SOURCE / phase / "SKILL.md", SKILLS_SOURCE / phase / "SKILL.md"]
-    for candidate in candidates:
-        if candidate.is_file():
-            return candidate.read_text(encoding="utf-8", errors="replace")
-    return ""
-
-
-def _build_tools(repository: Path):
-    root = repository.resolve()
-
-    def safe_path(relative_path: str) -> Path:
-        path = (root / relative_path).resolve()
-        if path != root and root not in path.parents:
-            raise ValueError("Path must remain inside the repository")
-        return path
-
-    @function_tool
-    def list_files(path: str = ".", max_entries: int = 300) -> str:
-        """List repository files and directories recursively, without modifying anything."""
-        target = safe_path(path)
-        if not target.exists():
-            return "Path does not exist."
-        entries = []
-        for item in target.rglob("*"):
-            if ".git" in item.parts:
-                continue
-            entries.append(str(item.relative_to(root)))
-            if len(entries) >= max_entries:
-                entries.append("[truncated]")
-                break
-        return "\n".join(entries)
-
-    @function_tool
-    def read_file(path: str, max_chars: int = 30000) -> str:
-        """Read a UTF-8 text file for conditional follow-up evidence not already present in deterministic intelligence."""
-        target = safe_path(path)
-        if not target.is_file():
-            return "File does not exist or is not a regular file."
-        try:
-            return target.read_text(encoding="utf-8", errors="replace")[:max_chars]
-        except OSError as exc:
-            return f"Could not read file: {exc}"
-
-    @function_tool
-    def search_repository(query: str, max_results: int = 100) -> str:
-        """Search repository text for conditional follow-up evidence not already present in deterministic intelligence."""
-        matches = []
-        for item in root.rglob("*"):
-            if ".git" in item.parts or not item.is_file():
-                continue
-            try:
-                with item.open("r", encoding="utf-8", errors="replace") as handle:
-                    for line_number, line in enumerate(handle, start=1):
-                        if query.lower() in line.lower():
-                            matches.append(f"{item.relative_to(root)}:{line_number}: {line.rstrip()}")
-                            if len(matches) >= max_results:
-                                return "\n".join(matches + ["[truncated]"])
-            except OSError:
-                continue
-        return "\n".join(matches) if matches else "No matches found."
-
-    return [list_files, read_file, search_repository]
-
-
 def _preview(value: Any, limit: int = 800) -> str:
     text = str(value).replace("\n", "\\n")
     return text[:limit] + ("...[truncated]" if len(text) > limit else "")
@@ -195,6 +132,44 @@ class AgentDiagnosticsHooks(RunHooks):
         logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
+def _sandbox_manifest(repository: Path) -> Manifest:
+    """Expose the already-cloned repository as a read-only sandbox workspace entry."""
+    if os.name == "nt":
+        grant = SandboxPathGrant(
+            path="/host/target-repository",
+            host_path=str(repository),
+            read_only=True,
+            description="Read-only source repository staged by the existing analysis clone step.",
+        )
+    else:
+        grant = SandboxPathGrant(
+            path=repository.resolve(),
+            read_only=True,
+            description="Read-only source repository staged by the existing analysis clone step.",
+        )
+    return Manifest(
+        entries={"repo": LocalDir(src=repository)},
+        extra_path_grants=(grant,),
+    )
+
+
+def _sandbox_run_config(repository: Path) -> RunConfig:
+    """Build the platform-appropriate sandbox configuration for one phase run."""
+    manifest = _sandbox_manifest(repository)
+    if os.name == "nt":
+        try:
+            from docker import from_env as docker_from_env
+            from agents.sandbox.sandboxes.docker import DockerSandboxClient, DockerSandboxClientOptions
+        except ImportError as exc:
+            raise AgentRunnerError("The OpenAI Agents SDK Docker sandbox dependencies are not installed. Install backend requirements with 'openai-agents[docker]' and ensure Docker Desktop is running.") from exc
+        client = DockerSandboxClient(docker_from_env())
+        options = DockerSandboxClientOptions(image="python:3.14-slim")
+        return RunConfig(sandbox=SandboxRunConfig(client=client, manifest=manifest, options=options), workflow_name="SDLC repository reverse engineering sandbox")
+
+    from agents.sandbox.sandboxes.unix_local import UnixLocalSandboxClient
+    return RunConfig(sandbox=SandboxRunConfig(client=UnixLocalSandboxClient(), manifest=manifest), workflow_name="SDLC repository reverse engineering sandbox")
+
+
 async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_intelligence: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
@@ -205,36 +180,54 @@ async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_int
         raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
 
     agent_definition = _read_agent_definition(phase)
-    skill = _read_skill(phase)
     handoff = ""
     if previous_output:
         handoff = "\n\nPrevious phase output is supporting context only. Verify important claims against repository evidence.\n\n" + previous_output[:20000]
 
     common_instructions = """You are performing an evidence-driven SDLC reverse-engineering phase.
 The repository has already been cloned and deterministic repository intelligence has already been collected before your first turn. Treat that intelligence as the primary evidence index.
-Do not repeat repository-wide discovery or reread files merely to reconstruct information already present in the intelligence package. Use repository tools only for a specific ambiguity, missing source passage, or precision check.
+The repository is available in the sandbox workspace at `repo/` and is read-only. Use the sandbox filesystem and shell capabilities for targeted evidence inspection.
+Do not repeat repository-wide discovery or reread files merely to reconstruct information already present in the intelligence package. Use workspace tools for a specific ambiguity, missing source passage, precision check, or targeted verification.
 Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
-The repository is read-only. Do not modify it.
+Do not modify repository files. Do not install dependencies or alter the workspace.
 Return only complete professional Markdown documentation for the requested phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process.
+
+SKILL DISCOVERY
+The phase skill is available through the sandbox Skills capability. Discover and load the phase skill when useful rather than receiving the entire skill text in the initial instructions.
 
 INVESTIGATION BUDGET
 You have a finite investigation budget defined by the runner. Prioritize high-value evidence gathering early. As the remaining budget becomes small, stop broad exploration and transition to verification and synthesis. On the final available turn, produce the best-supported artifact possible rather than continuing investigation. Never invent missing evidence; mark it unknown or unverified."""
 
-    instructions = "\n\n".join(part for part in [common_instructions, agent_definition, f"Phase methodology:\n{skill}" if skill else "", phase_intelligence, handoff] if part)
+    phase_skill_instruction = f"Use the `${phase}` skill for the phase methodology."
+    instructions = "\n\n".join(part for part in [common_instructions, phase_skill_instruction, agent_definition, phase_intelligence, handoff] if part)
 
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
-    agent = Agent(
+    model_instance = OpenAIChatCompletionsModel(model=model.strip(), openai_client=client)
+    agent = SandboxAgent(
         name=f"SDLC {phase_name}",
         instructions=instructions,
-        model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
-        tools=_build_tools(repository),
+        model=model_instance,
+        default_manifest=_sandbox_manifest(repository),
+        capabilities=Capabilities.default() + [
+            Skills(
+                lazy_from=LocalDirLazySkillSource(
+                    source=LocalDir(src=SKILLS_SOURCE),
+                )
+            )
+        ],
     )
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
-    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_chars=%d max_turns=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), len(skill), settings.phase_agent_max_turns)
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_mode=lazy max_turns=%d sandbox=%s", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), settings.phase_agent_max_turns, "docker" if os.name == "nt" else "unix-local")
     try:
-        result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks, max_turns=settings.phase_agent_max_turns)
+        result = await Runner.run(
+            agent,
+            "Analyze the repository and produce the requested phase documentation.",
+            hooks=hooks,
+            max_turns=settings.phase_agent_max_turns,
+            run_config=_sandbox_run_config(repository),
+        )
     except Exception as exc:
         logger.warning("AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s", trace_id, phase, time.perf_counter() - started, hooks.llm_turn, hooks.tool_calls, type(exc).__name__, str(exc))
         raise
