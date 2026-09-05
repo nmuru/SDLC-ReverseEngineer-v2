@@ -54,9 +54,17 @@ def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_i
             raise RuntimeError(f"Renderer returned an empty result for phase '{phase_key}'.")
         raw_path = phase_output_dir / "raw.md"
         raw_path.write_text(rendered_result, encoding="utf-8")
+        provenance = {
+            "phase": phase_key,
+            "phase_name": phase_name,
+            "provider": provider,
+            "model": model,
+            "run_id": run_id,
+        }
+        (phase_output_dir / "provenance.json").write_text(__import__("json").dumps(provenance, indent=2), encoding="utf-8")
         if diagnostics:
             diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="completed")
-        return {"phase": phase_key, "phase_name": phase_name, "raw_analysis": rendered_result, "raw_path": str(raw_path), "run_id": run_id}
+        return {"phase": phase_key, "phase_name": phase_name, "raw_analysis": rendered_result, "raw_path": str(raw_path), "run_id": run_id, "provenance": provenance}
     except Exception:
         if diagnostics:
             diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="failed")
@@ -88,7 +96,6 @@ def _run_batch(batch: list[tuple[str, str]], repository: Path, phase_packages: d
 
 
 def _phase_context(phase: str, deterministic: str, repository_research: str, phase_research: str) -> str:
-    """Combine evidence and upstream reasoning without making the reasoning authoritative."""
     return "\n\n".join([
         deterministic,
         "UPSTREAM SEMANTIC RESEARCH BRIEF (NAVIGATION AID — NOT AUTHORITATIVE EVIDENCE)",
