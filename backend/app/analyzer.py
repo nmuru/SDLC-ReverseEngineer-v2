@@ -178,6 +178,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
             deterministic_phase_packages = {key: build_phase_intelligence(intelligence, key) for key in selected_ids}
 
             phase_research: dict[str, str] = {}
+            phase_research_failures: list[dict] = []
             diagnostics.run_event("phase_research_started", phase_count=len(selected_ids), expected_llm_requests=len(selected_ids))
             with ThreadPoolExecutor(max_workers=max(1, len(selected_ids))) as executor:
                 futures = {
@@ -186,25 +187,55 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
                 }
                 for future in as_completed(futures):
                     key = futures[future]
-                    phase_research[key] = future.result()
-                    write_research_artifact(output_run_dir / key / "phase-research.md", kind="phase", phase=key, content=phase_research[key])
-                    diagnostics.run_event("phase_research_completed", phase=key, output_chars=len(phase_research[key]), llm_requests=1)
+                    phase_name = phase_by_id[key]
+                    try:
+                        phase_research[key] = future.result()
+                        write_research_artifact(output_run_dir / key / "phase-research.md", kind="phase", phase=key, content=phase_research[key])
+                        diagnostics.run_event("phase_research_completed", phase=key, output_chars=len(phase_research[key]), llm_requests=1)
+                    except Exception as exc:
+                        failure = _phase_failure(key, phase_name, exc)
+                        phase_research_failures.append(failure)
+                        failures.append(failure)
+                        diagnostics.run_event("phase_research_failed", phase=key, error_type=type(exc).__name__, error=str(exc))
+                        failure_path = output_run_dir / key / "phase-research-failure.md"
+                        failure_path.parent.mkdir(parents=True, exist_ok=True)
+                        failure_path.write_text(
+                            f"# Phase Research Failed\n\nPhase: {phase_name}\n\nError type: {type(exc).__name__}\n\nError: {exc}\n",
+                            encoding="utf-8",
+                        )
 
-            phase_packages = {key: _phase_context(key, deterministic_phase_packages[key], repository_research, phase_research[key]) for key in selected_ids}
-            diagnostics.run_event("semantic_context_ready", repository_research_chars=len(repository_research), phase_research_chars={key: len(value) for key, value in phase_research.items()}, expected_upfront_llm_requests=1 + len(selected_ids))
+            runnable_ids = [key for key in selected_ids if key in phase_research]
+            runnable_batches = []
+            for batch in batches:
+                runnable_batch = [(key, name) for key, name in batch if key in phase_research]
+                if runnable_batch:
+                    runnable_batches.append(runnable_batch)
+
+            phase_packages = {
+                key: _phase_context(key, deterministic_phase_packages[key], repository_research, phase_research[key])
+                for key in runnable_ids
+            }
+            diagnostics.run_event(
+                "semantic_context_ready",
+                repository_research_chars=len(repository_research),
+                phase_research_chars={key: len(value) for key, value in phase_research.items()},
+                phase_research_failed=[failure["phase"] for failure in phase_research_failures],
+                expected_upfront_llm_requests=1 + len(selected_ids),
+            )
 
             if batch_mode == "parallel":
-                with ThreadPoolExecutor(max_workers=len(batches)) as executor:
-                    futures = {
-                        executor.submit(_run_batch, batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index): index
-                        for index, batch in enumerate(batches, start=1)
-                    }
-                    for future in as_completed(futures):
-                        batch_results, batch_failures = future.result()
-                        results.update(batch_results)
-                        failures.extend(batch_failures)
+                if runnable_batches:
+                    with ThreadPoolExecutor(max_workers=len(runnable_batches)) as executor:
+                        futures = {
+                            executor.submit(_run_batch, batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index): index
+                            for index, batch in enumerate(runnable_batches, start=1)
+                        }
+                        for future in as_completed(futures):
+                            batch_results, batch_failures = future.result()
+                            results.update(batch_results)
+                            failures.extend(batch_failures)
             else:
-                for index, batch in enumerate(batches, start=1):
+                for index, batch in enumerate(runnable_batches, start=1):
                     batch_results, batch_failures = _run_batch(batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index)
                     results.update(batch_results)
                     failures.extend(batch_failures)
