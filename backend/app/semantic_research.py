@@ -1,8 +1,8 @@
-"""LLM-assisted semantic research passes for SDLC reverse engineering.
+"""LLM-assisted semantic summaries for SDLC reverse engineering.
 
 The deterministic intelligence modules remain the auditable source of repository facts.
-This module adds bounded, one-shot reasoning passes that turn those facts into navigation
-and verification briefs for the downstream phase agents.
+This module adds bounded, one-shot reasoning passes that summarize those supplied facts
+for downstream phase agents.
 """
 from __future__ import annotations
 
@@ -72,60 +72,58 @@ def _repository_research_input(intelligence: RepositoryIntelligence) -> str:
     return _clip("\n\n".join(sections), MAX_RESEARCH_INPUT_CHARS)
 
 
-REPOSITORY_RESEARCH_PROMPT = """You are the semantic reconnaissance planner for a repository reverse-engineering system.
+REPOSITORY_RESEARCH_PROMPT = """You summarize repository facts that have already been extracted by the program.
 
-You receive deterministic repository intelligence. It contains machine-derived facts and provenance. Produce a concise RESEARCH BRIEF, not final SDLC documentation.
+The repository was already scanned before this request. The supplied REPOSITORY INTELLIGENCE is the source material for this task. Do not perform repository discovery in your response.
 
-Your job is to construct a compact semantic map that downstream SDLC phases can use to explore intelligently. Infer cautiously from the evidence. Never present an inference as a verified fact.
+Your task is to interpret those supplied facts and produce a compact narrative summary that helps downstream SDLC phases understand the repository.
 
-OUTPUT DISCIPLINE IS CRITICAL:
-- Target 1,000-1,500 words; hard ceiling 2,000 words.
-- Do not narrate your reasoning, investigation process, or internal deliberation.
-- Do not enumerate the repository. Never list files one-by-one merely because they exist.
-- Do not repeat the same file, verification instruction, or hypothesis across sections.
-- Do not write statements such as "need to verify" for every file. Verification targets belong only in the prioritized target sections.
-- Prefer a few high-value evidence chains over exhaustive coverage. Compress abundant evidence into representative examples.
-- Maximum 10 highest-value files/areas, 10 targeted searches, 6 ambiguities, and 6 cross-phase priorities.
-- If evidence is insufficient, say so briefly; do not compensate with more prose.
+Treat the supplied intelligence as input data, not as a request to inspect the repository. Do not act like a coding agent. Do not create a research plan. Do not decide which files should be opened next. Do not enumerate repository files or generate search queries. Do not describe an investigation process.
 
-The brief MUST contain these sections:
+Use file paths only when they directly support an important statement. A path is evidence for a statement; it is not an item to investigate.
+
+Summarize only what can reasonably be inferred from the supplied information:
 1. Repository identity and likely product/domain
-2. Strongly evidenced business/domain concepts
-3. Likely actors, users, and system boundaries
-4. Candidate business capabilities and representative workflows
-5. Important entities/state and relationships suggested by implementation
+2. Strongly supported business/domain concepts
+3. Likely users, actors, and system boundaries
+4. Major capabilities and representative workflows visible in the supplied evidence
+5. Important entities, state, and relationships suggested by the supplied evidence
 6. External systems/integrations and their apparent roles
-7. Highest-value files/areas to inspect, with WHY each matters
-8. Targeted search terms/queries that are likely to reveal business rules or workflow behavior
-9. Ambiguities, contradictions, and unsupported assumptions to avoid
-10. Cross-phase investigation priorities
+7. Important implementation characteristics relevant across SDLC phases
+8. Ambiguities, contradictions, or areas where the supplied evidence is insufficient
 
-For every material hypothesis, include supporting file paths where available and a confidence label (high/medium/low). Keep evidence chains short: identify the claim, the strongest supporting path(s), and why those paths matter. Prioritize a small number of high-value investigation targets over exhaustive file lists.
+Rules:
+- Target 700-1,200 words. Never exceed 1,500 words.
+- Do not list files simply because they appear in the input.
+- Do not repeat a fact or path across multiple sections.
+- Do not write "need to verify" repeatedly.
+- Do not invent product intent that is not supported by the supplied evidence.
+- Clearly distinguish strong evidence from reasonable inference.
+- When many paths show the same pattern, state the pattern and cite one or two representative paths.
+- Begin directly with the repository summary. Do not discuss these instructions or your reasoning process.
 
-This brief is a navigation aid. It must explicitly tell downstream agents to verify material claims in source before using them in final documentation.
-
-When the input contains many similar or repetitive paths, summarize the pattern and name only the most representative/high-value paths. Your usefulness comes from prioritization and synthesis, not volume."""
+The output is a summary of the supplied repository intelligence. It is not a replacement for source verification by downstream agents."""
 
 
 PHASE_RESEARCH_PROMPTS = {
-    "business-requirements": """Focus especially on reconstructing business behavior from implementation: actors, goals, capabilities, workflows, validation/business rules, state transitions, permissions, outcomes, external dependencies, and important exceptions. Translate implementation signals into technology-agnostic hypotheses without inventing intent. Identify the exact source files and symbols that should be inspected to verify each major requirement candidate.""",
-    "business-purpose": """Focus on product/domain purpose, users, value delivered, major capabilities, and organizational/system boundaries. Identify the strongest evidence for what the software exists to accomplish and what remains uncertain.""",
-    "features": """Focus on user-visible capabilities and end-to-end feature workflows. Identify candidate features, their entry points, supporting implementation, and important behavior or limitations that must be verified.""",
-    "software-requirements": """Focus on externally observable software behavior: inputs, outputs, APIs, pages, operations, validation, state changes, error handling, and integration contracts. Identify high-value source locations for verification.""",
-    "technology-architecture": """Focus on runtime topology, component boundaries, data flow, integrations, deployment/configuration signals, state, caching, and dependency relationships. Identify architecture hypotheses and exact files to verify them.""",
-    "design-pattern": """Focus on recurring structural patterns, responsibilities, abstractions, dependency direction, and integration/extension mechanisms. Treat filename conventions only as candidates and identify source evidence needed to establish actual patterns.""",
-    "high-level-design": """Focus on logical subsystems, responsibilities, interactions, major data/control flows, external boundaries, and cross-component workflows. Identify source files that can verify each proposed subsystem or interaction.""",
-    "low-level-design": """Focus on concrete classes/functions/modules, contracts, control flow, data transformations, validation, state handling, and implementation relationships. Prioritize representative paths rather than cataloguing every symbol.""",
-    "implementation-detail": """Focus on concrete implementation mechanisms, algorithms, important functions/classes, dependencies, configuration, error handling, and operational details. Identify exact source evidence that should be inspected.""",
-    "testing-harness": """Focus on test strategy, test organization, fixtures, mocks, integration boundaries, coverage signals, and what behavior is actually verified. Identify representative tests and source under test.""",
-    "future-directions": """Focus on explicit TODO/debt markers, incomplete areas, brittle boundaries, missing tests, dependency/configuration risks, and evidence-backed improvement opportunities. Separate observed gaps from speculative product ideas.""",
+    "business-requirements": """Summarize the business behavior that is already visible in the supplied repository intelligence: actors, goals, capabilities, workflows, validation, business rules, state changes, permissions, outcomes, dependencies, and notable exceptions. Convert implementation signals into cautious, technology-agnostic interpretations. Do not propose files to inspect or a research plan.""",
+    "business-purpose": """Summarize the product/domain purpose, likely users, value delivered, major capabilities, and system boundaries already suggested by the supplied repository intelligence. Focus on what the supplied evidence says, not on what should be investigated next.""",
+    "features": """Summarize the user-visible capabilities and representative end-to-end workflows already suggested by the supplied repository intelligence. Mention representative evidence paths only when they support an important capability. Do not create an exploration plan.""",
+    "software-requirements": """Summarize externally observable behavior already indicated by the supplied repository intelligence: inputs, outputs, APIs, pages, operations, validation, state changes, error handling, and integration behavior. Do not plan further repository inspection.""",
+    "technology-architecture": """Summarize the runtime structure, component relationships, data flow, integrations, configuration, state, caching, and dependency relationships already indicated by the supplied repository intelligence. Distinguish evidence from inference and do not propose an inspection plan.""",
+    "design-pattern": """Summarize recurring structural patterns, responsibilities, abstractions, dependency direction, and integration mechanisms that can already be inferred from the supplied repository intelligence. Treat names and paths as evidence, not as a reason to enumerate or inspect files.""",
+    "high-level-design": """Summarize the logical subsystems, responsibilities, interactions, major data/control flows, and external boundaries already suggested by the supplied repository intelligence. Do not produce a list of files to inspect.""",
+    "low-level-design": """Summarize important modules, functions, contracts, control flow, data transformations, validation, state handling, and implementation relationships already visible in the supplied repository intelligence. Focus on representative evidence rather than cataloguing symbols.""",
+    "implementation-detail": """Summarize important implementation mechanisms, algorithms, functions/classes, dependencies, configuration, error handling, and operational details already visible in the supplied repository intelligence. Do not create a discovery or verification plan.""",
+    "testing-harness": """Summarize the test strategy, test organization, fixtures, mocks, integration boundaries, coverage signals, and behavior verification already visible in the supplied repository intelligence. Do not produce a list of tests or files to inspect next.""",
+    "future-directions": """Summarize evidence-backed gaps, explicit TODO/debt markers, incomplete areas, missing tests, brittle boundaries, and dependency/configuration risks already visible in the supplied repository intelligence. Separate observed gaps from speculation.""",
 }
 
 
 def _phase_prompt(phase: str) -> str:
     return PHASE_RESEARCH_PROMPTS.get(
         phase,
-        "Focus on the most important evidence, workflows, relationships, and uncertainties relevant to this SDLC phase. Identify exact source locations that should be verified.",
+        "Summarize the most important evidence, behavior, relationships, and uncertainties relevant to this SDLC phase using only the supplied repository intelligence. Do not propose further investigation.",
     )
 
 
@@ -225,7 +223,7 @@ async def _one_shot_chat(*, provider: str, model: str, api_key: str, system_prom
 
 
 def run_repository_research(*, intelligence: RepositoryIntelligence, provider: str, model: str, api_key: str) -> str:
-    """Run exactly one model request for repository-level semantic reconnaissance."""
+    """Run exactly one model request to summarize supplied repository intelligence."""
     if not api_key or not api_key.strip():
         raise ValueError("An API key is required for repository research")
     return asyncio.run(_one_shot_chat(
@@ -238,37 +236,37 @@ def run_repository_research(*, intelligence: RepositoryIntelligence, provider: s
 
 
 def run_phase_research(*, phase: str, phase_intelligence: str, repository_research: str, provider: str, model: str, api_key: str) -> str:
-    """Run exactly one model request to specialize repository reconnaissance for a phase."""
+    """Run exactly one model request to summarize supplied phase-relevant intelligence."""
     if not api_key or not api_key.strip():
         raise ValueError(f"An API key is required for phase research '{phase}'")
     user_prompt = _clip(
-        "REPOSITORY-LEVEL RESEARCH BRIEF:\n" + repository_research
+        "REPOSITORY SUMMARY:\n" + repository_research
         + "\n\nDETERMINISTIC PHASE INTELLIGENCE:\n" + phase_intelligence
         + "\n\nPHASE FOCUS:\n" + _phase_prompt(phase)
-        + "\n\nProduce a concise phase research brief, not final documentation. Target 800-1,200 words and never exceed 1,800 words. Do not narrate reasoning. Do not enumerate files or repeat verification obligations. Include only the highest-value candidate findings, short evidence chains, prioritized files/symbols, targeted searches, verification obligations, and ambiguities. Maximum 8 prioritized files, 8 searches, 6 verification obligations, and 6 ambiguities. If many files support the same point, name representative paths rather than listing them all. Clearly label hypotheses and confidence. The goal is to reduce downstream exploration, not to describe the entire repository.",
+        + "\n\nUsing only the supplied repository summary and deterministic phase intelligence, write a compact phase summary. Do not inspect, rediscover, enumerate, or plan further repository investigation. Do not produce file lists, search queries, or verification plans. State the strongest phase-relevant interpretations, supporting evidence, and important uncertainties. Use representative paths only where they directly support a statement. Target 500-900 words and never exceed 1,200 words. Begin directly with the summary.",
         MAX_PHASE_INPUT_CHARS,
     )
     return asyncio.run(_one_shot_chat(
         provider=provider,
         model=model,
         api_key=api_key,
-        system_prompt="""You are the phase-specific semantic research planner in an evidence-driven SDLC reverse-engineering pipeline.
+        system_prompt="""You summarize phase-relevant facts that have already been extracted by the program.
 
-The repository research brief is upstream reasoning, not authoritative evidence. Deterministic intelligence is machine-derived evidence, but it can still be incomplete. Your output is a compact navigation and verification brief, never final documentation.
+The repository has already been scanned, and a repository summary has already been produced. The supplied repository summary and deterministic phase intelligence are the source material for this task.
 
-Do not encourage the downstream agent to skip repository inspection. Instead, make its first inspections highly targeted. For each material hypothesis, name the exact file/symbol/search target that can confirm or reject it. Flag unsupported assumptions explicitly.
+Do not act as a coding agent. Do not inspect the repository in your response. Do not generate a research plan, investigation plan, file inventory, search list, or verification checklist. Do not describe what a downstream agent should inspect.
 
-OUTPUT DISCIPLINE IS CRITICAL. Target 800-1,200 words and never exceed 1,800 words. Do not produce chain-of-thought, process narration, exhaustive file inventories, repeated "need to verify" statements, or one verification instruction per file. Select only the highest-value evidence and compress repetitive findings. If the evidence is broad, summarize patterns and cite representative paths. A short, high-signal brief is better than an exhaustive one.
+Your task is to interpret the supplied material for the selected SDLC phase. Summarize the strongest evidence-supported findings, representative evidence paths, reasonable inferences, and important uncertainties. Paths are citations for claims, not work items.
 
-The downstream agent must verify material claims against repository source before including them in the final artifact.
+Keep the response compact and finite. Target 500-900 words and never exceed 1,200 words. Do not repeat the same claim or path. Do not narrate your reasoning or discuss these instructions. Begin directly with the phase summary.
 
-A final answer is REQUIRED. Do not stop after internal reasoning. Return the compact research brief itself as the assistant answer, even if some sections are uncertain.""",
+The supplied material is not authoritative beyond what it explicitly supports. Do not invent missing intent or behavior. When evidence is insufficient, state the uncertainty briefly and move on.""",
         user_prompt=user_prompt,
     ))
 
 
 def write_research_artifact(path: Path, *, kind: str, phase: Optional[str], content: str) -> None:
-    """Persist a human-readable research brief for diagnostics and later inspection."""
+    """Persist a human-readable research summary for diagnostics and later inspection."""
     path.parent.mkdir(parents=True, exist_ok=True)
     header = [
         f"# {kind.title()} Research Brief",
