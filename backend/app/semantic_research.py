@@ -26,6 +26,7 @@ MAX_PHASE_INPUT_CHARS = 100_000
 MAX_REASONING_FALLBACK_CHARS = 60_000
 MAX_TOOL_ROUNDS = 2
 MAX_TOOL_RESULT_CHARS = 20_000
+MAX_COMPLETION_TOKENS = 6_000
 
 
 def _provider_base_url(provider: str) -> str:
@@ -258,13 +259,29 @@ async def _one_shot_chat(*, provider: str, model: str, api_key: str, system_prom
     tool_rounds = 0
     try:
         while True:
-            response = await client.chat.completions.create(
-                model=model.strip(),
-                messages=messages,
-                temperature=0.1,
-                tools=tools,
-                tool_choice="auto",
-            )
+            tool_choice = "auto" if tool_rounds < MAX_TOOL_ROUNDS else "none"
+            try:
+                response = await client.chat.completions.create(
+                    model=model.strip(),
+                    messages=messages,
+                    temperature=0.1,
+                    tools=tools,
+                    tool_choice=tool_choice,
+                    max_tokens=MAX_COMPLETION_TOKENS,
+                )
+            except Exception as exc:
+                logger.exception(
+                    "SEMANTIC_RESEARCH provider request failed model=%s provider=%s tool_round=%d tool_choice=%s input_chars=%d error_type=%s error=%s",
+                    model,
+                    provider,
+                    tool_rounds,
+                    tool_choice,
+                    sum(len(str(message.get("content") or "")) for message in messages),
+                    type(exc).__name__,
+                    exc,
+                )
+                raise
+
             diagnostics = _response_diagnostics(response)
             logger.info("SEMANTIC_RESEARCH response model=%s provider=%s tool_round=%d diagnostics=%s", model, provider, tool_rounds, diagnostics)
             choices = getattr(response, "choices", None) or []
