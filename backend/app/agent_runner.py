@@ -14,7 +14,7 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
-from agents import RunHooks, Runner, SandboxAgent
+from agents import RunHooks, Runner
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from agents.run import RunConfig
 from agents.sandbox import Manifest, SandboxAgent, SandboxPathGrant, SandboxRunConfig
