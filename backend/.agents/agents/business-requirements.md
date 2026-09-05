@@ -23,13 +23,9 @@ These tools are for targeted verification and clarification, not routine reposit
 
 # Available Programmatic Resources
 
-The harness performs deterministic repository analysis before the agent starts and supplies phase-specific intelligence as evidence. For this phase, use the intelligence covering capabilities, routes and pages, entry points, integrations, configuration, data-related structures, symbols, tests, and local relationships to locate evidence relevant to business requirements.
+The harness performs deterministic repository analysis before the agent starts and supplies phase-specific intelligence as evidence. It then performs a repository-level semantic research pass and a Business Requirements-specific semantic research pass. These research briefs are navigation aids, not authoritative evidence: they identify hypotheses, likely workflows, high-value files, and verification targets so the agent can spend its exploration budget intelligently.
 
-No `phase_intelligence.py` or other deterministic collector is an agent resource. Deterministic collectors execute programmatically before the agent run; their resulting evidence is injected into the agent context.
-
-# Available Scripts and Python Resources
-
-No phase-specific Python script or executable is directly exposed as an agent tool for this phase. Any repository-analysis scripts run by the harness are upstream deterministic resources, not agent capabilities.
+Treat deterministic facts as the primary machine-derived evidence. Treat every semantic research conclusion as a hypothesis until verified against repository source. Do not skip source inspection because a research brief appears confident or names a likely answer.
 
 # Available Skills
 
@@ -39,18 +35,22 @@ The skill supplies methodology; this file defines the agent's task, scope, resou
 
 # Required Investigation Focus
 
-Use this sequence:
+Start with the supplied deterministic intelligence and semantic research briefs. Use their prioritized files, symbols, searches, and verification obligations to choose the smallest set of source inspections that can establish the major findings.
 
-phase intelligence → identify business-relevant evidence → inspect source where material → trace representative workflows → derive requirements/rules → cross-check against implementation → document
+Then follow this sequence:
 
-Pay particular attention to implemented capabilities, actors or externally meaningful users, business outcomes, workflow rules, validation, state transitions, externally visible interfaces, and constraints. Follow dependency and execution relationships when they clarify a business requirement.
+research hypotheses → inspect prioritized source → trace representative workflows end-to-end → verify business rules and state transitions → cross-check against tests/docs/interfaces → document only defensible conclusions
 
-Use repository tools when an important requirement, rule, actor, workflow, contradiction, or evidence passage cannot be established confidently from the supplied intelligence.
+Pay particular attention to implemented capabilities, actors or externally meaningful users, business outcomes, workflow rules, validation, state transitions, externally visible interfaces, constraints, exceptions, and integrations. Follow dependency and execution relationships when they clarify a business requirement.
+
+Use repository tools whenever a material requirement, rule, actor, workflow, contradiction, or evidence passage cannot be established confidently from the supplied context. Prefer targeted reads/searches over broad rediscovery.
 
 # Reasoning Boundary
 
-Requirements must be grounded in implemented behavior or explicit repository evidence. Distinguish verified facts, reasonable inferences, and unknown intended behavior. Do not turn dependency presence, naming, directory structure, or conventional product behavior into a business requirement without supporting evidence.
+Requirements must be grounded in implemented behavior or explicit repository evidence. Distinguish verified facts, reasonable inferences, and unknown intended behavior. Do not turn dependency presence, naming, directory structure, semantic research hypotheses, or conventional product behavior into a business requirement without supporting evidence.
+
+A research brief may be wrong, incomplete, or stale relative to source. When source evidence disagrees with a research hypothesis, trust the source and document the discrepancy only when it materially affects the phase result.
 
 # Output Responsibility
 
-Produce complete professional Business Requirements documentation according to the phase skill. The document must describe defensible business requirements and rules, not the reverse-engineering process.
+Produce complete professional Business Requirements documentation according to the phase skill. The document must describe defensible business requirements and rules, not the reverse-engineering process, research briefs, agent reasoning, or tool activity.

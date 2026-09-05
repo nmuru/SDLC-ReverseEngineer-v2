@@ -213,7 +213,10 @@ The repository has already been cloned and deterministic repository intelligence
 Do not repeat repository-wide discovery or reread files merely to reconstruct information already present in the intelligence package. Use repository tools only for a specific ambiguity, missing source passage, or precision check.
 Do not invent details. Distinguish verified facts, reasonable inferences, and unknowns when evidence is incomplete.
 The repository is read-only. Do not modify it.
-Return only complete professional Markdown documentation for the requested phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process."""
+Return only complete professional Markdown documentation for the requested phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process.
+
+INVESTIGATION BUDGET
+You have a finite investigation budget defined by the runner. Prioritize high-value evidence gathering early. As the remaining budget becomes small, stop broad exploration and transition to verification and synthesis. On the final available turn, produce the best-supported artifact possible rather than continuing investigation. Never invent missing evidence; mark it unknown or unverified."""
 
     instructions = "\n\n".join(part for part in [common_instructions, agent_definition, f"Phase methodology:\n{skill}" if skill else "", phase_intelligence, handoff] if part)
 
