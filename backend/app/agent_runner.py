@@ -17,6 +17,8 @@ from agents import Agent, Runner, RunHooks, function_tool
 from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
 
+from .config import settings
+
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_SOURCE = PROJECT_ROOT / ".agents" / "agents"
@@ -230,9 +232,9 @@ You have a finite investigation budget defined by the runner. Prioritize high-va
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
-    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_chars=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), len(skill))
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_chars=%d max_turns=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), len(skill), settings.phase_agent_max_turns)
     try:
-        result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks)
+        result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks, max_turns=settings.phase_agent_max_turns)
     except Exception as exc:
         logger.warning("AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s", trace_id, phase, time.perf_counter() - started, hooks.llm_turn, hooks.tool_calls, type(exc).__name__, str(exc))
         raise
