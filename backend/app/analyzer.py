@@ -122,6 +122,9 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     output_root = Path(settings.analysis_results_dir)
     if not output_root.is_absolute(): output_root = Path(__file__).resolve().parents[1] / output_root
     output_run_dir = output_root / run_id; output_run_dir.mkdir(parents=True, exist_ok=True)
+    stale_download = output_run_dir / "sdlc-documentation.zip"
+    if stale_download.exists():
+        stale_download.unlink()
     diagnostics_dir = Path(settings.resource_diagnostics_dir)
     if not diagnostics_dir.is_absolute(): diagnostics_dir = output_run_dir / diagnostics_dir
     diagnostics = ResourceDiagnostics(enabled=settings.resource_diagnostics_enabled, output_dir=diagnostics_dir, sample_interval_seconds=settings.resource_diagnostics_interval_seconds, run_id=run_id)
@@ -178,10 +181,17 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
                 for index, batch in enumerate(runnable_batches, start=1):
                     _check_cancelled(run_control); batch_results, batch_failures = _run_batch(batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index, run_control); results.update(batch_results); failures.extend(batch_failures)
 
-        _check_cancelled(run_control); create_download_package(output_run_dir); diagnostics.run_event("analysis_completed", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures]); return {"run_id": run_id, "results": results, "failures": failures}
+        _check_cancelled(run_control)
+        if failures:
+            diagnostics.run_event("analysis_failed", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures])
+            failed_names = ", ".join(failure["phase_name"] for failure in failures)
+            raise ValueError(f"Analysis failed for {len(failures)} selected phase{'s' if len(failures) != 1 else ''}: {failed_names}. Please rerun the failed phase.")
+        create_download_package(output_run_dir); diagnostics.run_event("analysis_completed", completed_phases=list(results), failed_phases=[]); return {"run_id": run_id, "results": results, "failures": []}
     except RunCancelled:
         diagnostics.run_event("analysis_cancelled", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures]); raise
     except Exception as exc:
-        diagnostics.run_event("analysis_failed", error_type=type(exc).__name__, error=str(exc)); raise
+        if not failures:
+            diagnostics.run_event("analysis_failed", error_type=type(exc).__name__, error=str(exc))
+        raise
     finally:
         diagnostics.stop()
