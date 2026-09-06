@@ -21,13 +21,7 @@ from .schemas import AnalyzeRequest
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="ReverseEngineer-SDLC API", version="0.2.0")
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[origin.strip() for origin in settings.allowed_origins.split(",") if origin.strip()],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+app.add_middleware(CORSMiddleware, allow_origins=[origin.strip() for origin in settings.allowed_origins.split(",") if origin.strip()], allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 
 _run_controls: dict[str, RunControl] = {}
 _run_controls_lock = Lock()
@@ -203,6 +197,7 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
     repo_url = str(request.repo_url)
     event_queue: Queue[dict[str, Any]] = Queue()
     run_id = request.work_id or ""
+    stream_run_id = {"value": run_id}
 
     if run_id:
         with _run_controls_lock:
@@ -220,6 +215,7 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             if not resolved_run_id:
                 import uuid
                 resolved_run_id = uuid.uuid4().hex
+            stream_run_id["value"] = resolved_run_id
             output_run_dir = _output_root() / resolved_run_id
             output_run_dir.mkdir(parents=True, exist_ok=True)
             control = RunControl(resolved_run_id, output_run_dir / "run-state.json")
@@ -252,8 +248,9 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
 
     async def event_stream():
         while True:
+            current_run_id = stream_run_id["value"]
             with _run_controls_lock:
-                control = _run_controls.get(run_id) if run_id else None
+                control = _run_controls.get(current_run_id) if current_run_id else None
             if control:
                 control.touch()
             try:
