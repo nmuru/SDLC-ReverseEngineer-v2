@@ -1,5 +1,6 @@
 """Repository analysis orchestration."""
 
+import json
 import tempfile
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -43,25 +44,19 @@ def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_i
     if diagnostics:
         diagnostics.phase_start(phase_key, phase_name, batch_index=batch_index)
     try:
-        raw_result = run_phase_agent(phase=phase_key, phase_name=phase_name, repository=repository, phase_intelligence=phase_intelligence, provider=provider, model=model, api_key=api_key)
+        raw_result, actual_model = run_phase_agent(phase=phase_key, phase_name=phase_name, repository=repository, phase_intelligence=phase_intelligence, provider=provider, model=model, api_key=api_key)
         if not raw_result.strip():
             raise RuntimeError(f"OpenAI Agents SDK returned an empty result for phase '{phase_key}'.")
         phase_output_dir = output_run_dir / phase_key
         phase_output_dir.mkdir(parents=True, exist_ok=True)
         (phase_output_dir / "agent-output.md").write_text(raw_result, encoding="utf-8")
-        rendered_result = render_analysis(phase=phase_key, analysis=raw_result, provider=provider, model=model, api_key=api_key)
+        rendered_result = render_analysis(phase=phase_key, analysis=raw_result, provider=provider, model=actual_model, api_key=api_key)
         if not rendered_result.strip():
             raise RuntimeError(f"Renderer returned an empty result for phase '{phase_key}'.")
         raw_path = phase_output_dir / "raw.md"
         raw_path.write_text(rendered_result, encoding="utf-8")
-        provenance = {
-            "phase": phase_key,
-            "phase_name": phase_name,
-            "provider": provider,
-            "model": model,
-            "run_id": run_id,
-        }
-        (phase_output_dir / "provenance.json").write_text(__import__("json").dumps(provenance, indent=2), encoding="utf-8")
+        provenance = {"model": actual_model}
+        (phase_output_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
         if diagnostics:
             diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="completed")
         return {"phase": phase_key, "phase_name": phase_name, "raw_analysis": rendered_result, "raw_path": str(raw_path), "run_id": run_id, "provenance": provenance}
