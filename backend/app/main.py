@@ -1,6 +1,8 @@
 import asyncio
 import json
 import logging
+import shutil
+import time
 from pathlib import Path
 from queue import Queue
 from threading import Lock, Thread
@@ -34,6 +36,33 @@ _run_controls_lock = Lock()
 def _output_root() -> Path:
     root = Path(settings.analysis_results_dir)
     return root if root.is_absolute() else Path(__file__).resolve().parents[1] / root
+
+
+def _run_dir(work_id: str) -> Path:
+    if Path(work_id).name != work_id:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return _output_root() / work_id
+
+
+def _cleanup_run_dir(work_id: str) -> bool:
+    run_dir = _run_dir(work_id)
+    if not run_dir.exists():
+        return False
+    shutil.rmtree(run_dir)
+    return True
+
+
+def _cleanup_after_run_finishes(control: RunControl, timeout_seconds: float = 120.0) -> None:
+    deadline = time.monotonic() + timeout_seconds
+    while time.monotonic() < deadline:
+        if control.snapshot().get("status") in {"completed", "failed", "cancelled"}:
+            try:
+                _cleanup_run_dir(control.run_id)
+            except OSError:
+                logger.exception("Unable to clean production output for work_id=%s", control.run_id)
+            return
+        time.sleep(0.5)
+    logger.warning("Production cleanup timed out while waiting for work_id=%s", control.run_id)
 
 
 def _read_phase_result(run_id: str, phase: str) -> str | None:
@@ -87,6 +116,30 @@ def stop_analysis(work_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=409, detail="The analysis is no longer attached to this server process and cannot be stopped here.")
     control.cancel()
     return control.snapshot()
+
+
+@app.post("/api/analysis/{work_id}/close")
+def close_analysis(work_id: str) -> dict[str, Any]:
+    """Close a UI workspace; production mode removes its server-side output."""
+    run_dir = _run_dir(work_id)
+    with _run_controls_lock:
+        control = _run_controls.get(work_id)
+
+    if settings.runtime_mode.lower() != "production":
+        return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": True, "cleanup_scheduled": False}
+
+    if control is not None and control.snapshot().get("status") in {"running", "cancelling"}:
+        control.cancel()
+        Thread(target=_cleanup_after_run_finishes, args=(control,), daemon=True).start()
+        return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": False, "cleanup_scheduled": True}
+
+    deleted = False
+    if run_dir.exists():
+        try:
+            deleted = _cleanup_run_dir(work_id)
+        except OSError as exc:
+            raise HTTPException(status_code=500, detail=f"Unable to clean analysis output: {exc}") from exc
+    return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": False, "cleanup_scheduled": False, "deleted": deleted}
 
 
 @app.get("/api/analysis/{work_id}/download")
