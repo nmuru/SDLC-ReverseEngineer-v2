@@ -14,6 +14,14 @@ An analysis performs more model work than the number of final dossier phases alo
 
 V1 intentionally exposes only the providers implemented by the backend: OpenRouter and OpenAI. The frontend should not advertise providers that the backend cannot route. The model field is passed through to the selected provider. There is no automatic model fallback in this V1 release. A rate limit, unavailable model, authentication failure, or provider error is surfaced as an analysis failure rather than silently switching to a different model.
 
+## Run control and refresh resilience
+
+A running analysis is independent of the browser tab. The workspace stores the `work_id` and lightweight run metadata in browser local storage; API keys are not stored. On refresh, the frontend reconnects to the backend status endpoint for that `work_id`, recovers completed phase artifacts, and resumes the same progressive-results view rather than returning to the initial setup screen.
+
+The workspace includes a **Stop analysis** control. It cancels the selected analysis run only; it does not stop the FastAPI web server or other users' work. Stop requests prevent subsequent phases from starting and propagate cancellation into active phase-agent and renderer requests. Completed phase results remain available and the user can return to the main page. If a browser is closed after a stop request, the backend still finishes cancellation independently.
+
+The progressive-results state remains the primary UI: completed phases stay readable while remaining phases continue, including the `10 of 11 phases have completed` case. Refresh recovery and stopping are additive to that experience.
+
 ## Rate limits and failures
 
 The analysis endpoint is an event stream. Backend validation and execution errors are returned as an `analysis_failed` event so the frontend can display a useful message instead of waiting indefinitely. Renderer requests retry HTTP 429 responses with bounded backoff before reporting failure.
@@ -34,7 +42,7 @@ Repositories are cloned into a temporary read-only analysis workspace for a run 
 
 ## Diagnostics
 
-Resource diagnostics are enabled in the current diagnostics baseline. The backend records runtime samples and phase lifecycle events as JSONL under the run's output directory. Agent diagnostics also record phase trace identifiers, model/provider names, observed agent turns, tool-call counts, and timing information in backend logs.
+Resource diagnostics are enabled in the current diagnostics baseline. The backend records runtime samples and phase lifecycle events as JSONL under the run's output directory. Agent diagnostics also record phase trace identifiers, model/provider names, observed agent turns, tool-call counts, and timing information in backend logs. Renderer diagnostics now record renderer start, completion, retry, failure, cancellation, attempt number, model, phase, and elapsed seconds without logging prompts or generated content.
 
 This information is intended to support engineering diagnostics and performance investigation. It is not presented as a claim that the application can reconstruct every provider-side billing or execution metric.
 
