@@ -60,9 +60,7 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
         try:
             payload = result_queue.get(timeout=5)
         except Empty as exc:
-            raise RuntimeError(
-                f"Semantic research worker exited without a result (kind={kind}, exit_code={process.exitcode})."
-            ) from exc
+            raise RuntimeError(f"Semantic research worker exited without a result (kind={kind}, exit_code={process.exitcode}).") from exc
         if payload.get("ok"):
             return str(payload.get("result") or "")
         raise RuntimeError(f"{payload.get('error_type', 'SemanticResearchError')}: {payload.get('error', 'semantic research failed')}")
@@ -82,4 +80,4 @@ def run_repository_research(*, intelligence: Any, repository: Path, provider: st
 
 
 def run_phase_research(*, phase: str, phase_intelligence: str, repository_research: str, repository: Path, provider: str, model: str, api_key: str, run_control: RunControl | None = None) -> str:
-    return _run_cancellable("phase", {"phase": phase, "phase_intelligence": phase_intelligence, "repository": repository, "provider": provider, "model": model, "api_key": api_key, "phase_intelligence": phase_intelligence, "repository_research": repository_research}, run_control)
+    return _run_cancellable("phase", {"phase": phase, "phase_intelligence": phase_intelligence, "repository": repository, "provider": provider, "model": model, "api_key": api_key, "repository_research": repository_research}, run_control)
