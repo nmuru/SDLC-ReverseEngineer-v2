@@ -60,7 +60,7 @@ const phases: Phase[] = [
   { id: "testing-harness", label: "Testing Harness", shortLabel: "Testing" },
   { id: "future-directions", label: "Future Directions", shortLabel: "Future" },
 ];
-const defaultSelectedPhases = phases.map((phase) => phase.id);
+const defaultSelectedPhases = ["software-requirements", "technology-architecture", "future-directions"];
 const phaseResultMap: Record<Phase["id"], keyof AnalysisResult> = {
   "business-purpose": "business_purpose", "business-requirements": "business_requirements", features: "features",
   "software-requirements": "software_requirements", "technology-architecture": "technology_architecture",
