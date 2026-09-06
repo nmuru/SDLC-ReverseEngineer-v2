@@ -11,7 +11,10 @@ export default function WorkspaceCloseControl() {
   useEffect(() => {
     const refresh = () => {
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+        // Legacy localStorage was shared by every localhost tab. Remove it so
+        // older V1 workspaces can never be restored by the new UI.
+        window.localStorage.removeItem(STORAGE_KEY);
+        const raw = window.sessionStorage.getItem(STORAGE_KEY);
         const stored = raw ? JSON.parse(raw) as { runId?: string } : null;
         setRunId(stored?.runId && stored.runId !== "vercel-demo" ? stored.runId : null);
       } catch {
@@ -33,6 +36,7 @@ export default function WorkspaceCloseControl() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/analysis/${runId}/close`, { method: "POST", keepalive: true });
       if (!response.ok) throw new Error("The backend did not accept the workspace close request.");
+      window.sessionStorage.removeItem(STORAGE_KEY);
       window.localStorage.removeItem(STORAGE_KEY);
       window.location.reload();
     } catch (error) {
