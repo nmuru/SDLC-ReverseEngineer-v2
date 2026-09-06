@@ -195,7 +195,7 @@ class AgentDiagnosticsHooks(RunHooks):
         logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
-async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_intelligence: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
+async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_intelligence: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> tuple[str, str]:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
         base_url = "https://openrouter.ai/api/v1"
@@ -241,11 +241,20 @@ You have a finite investigation budget defined by the runner. Prioritize high-va
     output = str(result.final_output or "").strip()
     if not output:
         raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
-    return output
+
+    actual_model = model.strip()
+    raw_responses = getattr(result, "raw_responses", None) or []
+    for raw_response in reversed(raw_responses):
+        response = getattr(raw_response, "response", raw_response)
+        response_model = getattr(response, "model", None)
+        if response_model:
+            actual_model = str(response_model)
+            break
+    return output, actual_model
 
 
-def run_phase_agent(phase: str, phase_name: str, repository: Path, phase_intelligence: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> str:
-    """Run one phase against a shared read-only repository workspace."""
+def run_phase_agent(phase: str, phase_name: str, repository: Path, phase_intelligence: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> tuple[str, str]:
+    """Run one phase against a shared read-only repository workspace and return output plus actual model used."""
     if not api_key or not api_key.strip():
         raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
     if not repository.is_dir():
