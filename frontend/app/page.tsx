@@ -109,10 +109,13 @@ export default function Home() {
     let cancelled = false;
     async function restoreWorkspace() {
       try {
-        const raw = window.localStorage.getItem(STORAGE_KEY);
+        // Workspace state is intentionally tab-scoped: refresh the same tab restores it,
+        // while a newly opened tab starts with a clean workspace.
+        window.localStorage.removeItem(STORAGE_KEY);
+        const raw = window.sessionStorage.getItem(STORAGE_KEY);
         if (!raw) { setRestored(true); return; }
         const stored = JSON.parse(raw) as StoredWorkspace;
-        if (!stored.runId || stored.runId === DEMO_RUN_ID) { setRestored(true); return; }
+        if (!stored.runId || stored.runId === DEMO_RUN_ID) { window.sessionStorage.removeItem(STORAGE_KEY); setRestored(true); return; }
         setRepoUrl(stored.repoUrl); setRunId(stored.runId); setSelectedPhases(stored.selectedPhases?.length ? stored.selectedPhases : defaultSelectedPhases);
         setCompletedPhases(stored.completedPhases ?? []); setActivePhase(stored.activePhase || stored.completedPhases?.[stored.completedPhases.length - 1] || stored.selectedPhases?.[0] || phases[0].id);
         setAnalysisStarted(true); setIsDemo(false); setProvenance(stored.provenance ?? null);
@@ -122,7 +125,7 @@ export default function Home() {
         if (cancelled) return;
         applyStatus(status);
       } catch (err) {
-        if (!cancelled) { window.localStorage.removeItem(STORAGE_KEY); setError(err instanceof Error ? err.message : "Unable to restore the previous analysis."); }
+        if (!cancelled) { window.sessionStorage.removeItem(STORAGE_KEY); setError(err instanceof Error ? err.message : "Unable to restore the previous analysis."); }
       } finally { if (!cancelled) setRestored(true); }
     }
     restoreWorkspace();
@@ -148,7 +151,7 @@ export default function Home() {
   useEffect(() => {
     if (!analysisStarted || isDemo || !runId) return;
     const snapshot: StoredWorkspace = { runId, repoUrl, selectedPhases, completedPhases, activePhase, status: stopped ? "cancelled" : analysisComplete ? "completed" : stopping ? "cancelling" : "running", provenance };
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
+    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot));
   }, [analysisStarted, isDemo, runId, repoUrl, selectedPhases, completedPhases, activePhase, stopped, analysisComplete, stopping, provenance]);
 
   function applyStatus(status: RunStatus) {
@@ -172,7 +175,7 @@ export default function Home() {
       const result = emptyResult(DEMO_REPO_URL); for (const [phaseId, content] of documents) result[phaseResultMap[phaseId as Phase["id"]]] = content; setAnalysisResult(result);
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to load the Vercel Commerce demo documentation."); }
   }
-  useEffect(() => { if (restored && !window.localStorage.getItem(STORAGE_KEY)) loadDemoDocumentation(); }, [restored]);
+  useEffect(() => { if (restored && !window.sessionStorage.getItem(STORAGE_KEY)) loadDemoDocumentation(); }, [restored]);
 
   function viewDemo() {
     if (!analysisResult) return;
@@ -223,7 +226,7 @@ export default function Home() {
   }
 
   function resetAnalysis() {
-    window.localStorage.removeItem(STORAGE_KEY); setAnalysisStarted(false); setIsDemo(false); setAnalysisComplete(false); setCompletedPhases([]); setCompletionMessages([]); setRepoUrl(""); setRunId(null); setProvider("openrouter"); setModel("openrouter/free"); setApiKey(""); setShowApiKey(false); setSelectedPhases(defaultSelectedPhases); setSelectionView(null); setActivePhase(phases[0].id); setAnalysisResult(null); setError(""); setLoading(false); setStopping(false); setStopped(false); setFailedPhases([]); setProvenance(null);
+    window.sessionStorage.removeItem(STORAGE_KEY); setAnalysisStarted(false); setIsDemo(false); setAnalysisComplete(false); setCompletedPhases([]); setCompletionMessages([]); setRepoUrl(""); setRunId(null); setProvider("openrouter"); setModel("openrouter/free"); setApiKey(""); setShowApiKey(false); setSelectedPhases(defaultSelectedPhases); setSelectionView(null); setActivePhase(phases[0].id); setAnalysisResult(null); setError(""); setLoading(false); setStopping(false); setStopped(false); setFailedPhases([]); setProvenance(null);
   }
 
   const activePhaseDefinition = phases.find((phase) => phase.id === activePhase) ?? phases[0];
