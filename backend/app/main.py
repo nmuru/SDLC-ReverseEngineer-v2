@@ -31,6 +31,8 @@ app.add_middleware(
 
 _run_controls: dict[str, RunControl] = {}
 _run_controls_lock = Lock()
+UI_HEARTBEAT_TIMEOUT_SECONDS = 8.0
+UI_HEARTBEAT_SCAN_SECONDS = 2.0
 
 
 def _output_root() -> Path:
@@ -62,6 +64,37 @@ def _wait_for_terminal(control: RunControl, timeout_seconds: float = 120.0) -> d
     raise TimeoutError(f"Analysis did not terminate within {timeout_seconds:.0f} seconds.")
 
 
+def _cleanup_orphaned_run(control: RunControl) -> None:
+    try:
+        _wait_for_terminal(control)
+        _cleanup_run_dir(control.run_id)
+    except TimeoutError:
+        logger.error("Orphaned UI run did not terminate within timeout; retaining output for safety work_id=%s", control.run_id)
+        return
+    except OSError:
+        logger.exception("Unable to clean orphaned UI output work_id=%s", control.run_id)
+        return
+    with _run_controls_lock:
+        _run_controls.pop(control.run_id, None)
+    logger.info("Removed orphaned UI workspace work_id=%s", control.run_id)
+
+
+def _ui_heartbeat_watchdog() -> None:
+    while True:
+        time.sleep(UI_HEARTBEAT_SCAN_SECONDS)
+        with _run_controls_lock:
+            controls = list(_run_controls.values())
+        for control in controls:
+            state = control.snapshot()
+            if state.get("status") not in {"running", "cancelling"}:
+                continue
+            if control.heartbeat_age_seconds() <= UI_HEARTBEAT_TIMEOUT_SECONDS:
+                continue
+            if control.cancel():
+                logger.warning("UI heartbeat lost; hard-cancelling analysis work_id=%s", control.run_id)
+                Thread(target=_cleanup_orphaned_run, args=(control,), daemon=True).start()
+
+
 def _read_phase_result(run_id: str, phase: str) -> str | None:
     if Path(run_id).name != run_id or Path(phase).name != phase:
         return None
@@ -79,6 +112,9 @@ def _read_phase_result(run_id: str, phase: str) -> str | None:
     return content.strip()
 
 
+Thread(target=_ui_heartbeat_watchdog, daemon=True).start()
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
     return {"status": "ok"}
@@ -90,6 +126,8 @@ def analysis_status(work_id: str) -> dict[str, Any]:
         raise HTTPException(status_code=404, detail="Analysis not found")
     with _run_controls_lock:
         control = _run_controls.get(work_id)
+    if control:
+        control.touch()
     state = control.snapshot() if control else load_persisted_run(_output_root() / work_id / "run-state.json")
     if state is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
@@ -111,6 +149,7 @@ def stop_analysis(work_id: str) -> dict[str, Any]:
         if state.get("status") in {"completed", "failed", "cancelled"}:
             return state
         raise HTTPException(status_code=409, detail="The analysis is no longer attached to this server process and cannot be stopped here.")
+    control.touch()
     control.cancel()
     return control.snapshot()
 
@@ -145,14 +184,7 @@ def close_analysis(work_id: str) -> dict[str, Any]:
     with _run_controls_lock:
         _run_controls.pop(work_id, None)
 
-    return {
-        "run_id": work_id,
-        "runtime_mode": settings.runtime_mode,
-        "retained": False,
-        "cleanup_scheduled": False,
-        "deleted": deleted,
-        "terminal_status": state.get("status"),
-    }
+    return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": False, "cleanup_scheduled": False, "deleted": deleted, "terminal_status": state.get("status")}
 
 
 @app.get("/api/analysis/{work_id}/download")
@@ -179,15 +211,7 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             raise HTTPException(status_code=409, detail="An analysis with this work ID is already running.")
 
     def on_phase_complete(phase_result: dict) -> None:
-        event_queue.put({
-            "type": "phase_completed",
-            "phase": phase_result["phase"],
-            "phase_name": phase_result["phase_name"],
-            "raw_analysis": phase_result["raw_analysis"],
-            "raw_path": phase_result["raw_path"],
-            "run_id": phase_result["run_id"],
-            "provenance": phase_result.get("provenance"),
-        })
+        event_queue.put({"type": "phase_completed", "phase": phase_result["phase"], "phase_name": phase_result["phase_name"], "raw_analysis": phase_result["raw_analysis"], "raw_path": phase_result["raw_path"], "run_id": phase_result["run_id"], "provenance": phase_result.get("provenance")})
 
     def run_analysis() -> None:
         control: RunControl | None = None
@@ -203,36 +227,13 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             with _run_controls_lock:
                 _run_controls[resolved_run_id] = control
 
-            results = analyze_repository(
-                repo_url,
-                phases_per_batch=settings.phases_per_batch,
-                batch_mode=settings.batch_mode,
-                selected_phases=request.selected_phases,
-                work_id=resolved_run_id,
-                on_phase_complete=on_phase_complete,
-                provider=request.provider,
-                model=request.model,
-                api_key=request.api_key,
-                run_control=control,
-            )
+            results = analyze_repository(repo_url, phases_per_batch=settings.phases_per_batch, batch_mode=settings.batch_mode, selected_phases=request.selected_phases, work_id=resolved_run_id, on_phase_complete=on_phase_complete, provider=request.provider, model=request.model, api_key=request.api_key, run_control=control)
             if control.is_cancelled():
                 control.finish("cancelled")
-                event_queue.put({
-                    "type": "analysis_cancelled",
-                    "repo_url": repo_url,
-                    "run_id": resolved_run_id,
-                    "completed_phases": list(results["results"].keys()),
-                    "failed_phases": results.get("failures", []),
-                })
+                event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": resolved_run_id, "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
             else:
                 control.finish("completed")
-                event_queue.put({
-                    "type": "analysis_completed",
-                    "repo_url": repo_url,
-                    "run_id": results["run_id"],
-                    "completed_phases": list(results["results"].keys()),
-                    "failed_phases": results.get("failures", []),
-                })
+                event_queue.put({"type": "analysis_completed", "repo_url": repo_url, "run_id": results["run_id"], "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
         except RunCancelled:
             if control:
                 control.finish("cancelled")
@@ -245,12 +246,7 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             if control:
                 control.finish("failed")
             logger.exception("Unexpected analysis failure: repo_url=%s", repo_url)
-            event_queue.put({
-                "type": "analysis_failed",
-                "repo_url": repo_url,
-                "run_id": control.run_id if control else resolved_run_id,
-                "error": f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}",
-            })
+            event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id if control else resolved_run_id, "error": f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}"})
 
     Thread(target=run_analysis, daemon=True).start()
 
@@ -261,8 +257,4 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             if event["type"] in {"analysis_completed", "analysis_failed", "analysis_cancelled"}:
                 break
 
-    return StreamingResponse(
-        event_stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"},
-    )
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"})
