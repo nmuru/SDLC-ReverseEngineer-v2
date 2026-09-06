@@ -7,6 +7,7 @@ The rendering stage is repository-blind and receives the complete raw output.
 
 from multiprocessing import get_context
 from typing import Optional
+import json
 import time
 import requests
 from .config import settings
@@ -76,8 +77,7 @@ def _render_with_openai_compatible_api(*, endpoint: str, api_key: str, model: st
             status_code = int(response_data.get("status_code", 500))
             if status_code != 429 or attempt == 3:
                 if status_code >= 400:
-                    from requests import HTTPError
-                    raise HTTPError(f"Renderer returned HTTP {status_code}: {response_data.get('body', '')[:500]}")
+                    raise RuntimeError(f"Renderer returned HTTP {status_code}: {response_data.get('body', '')[:500]}")
                 if diagnostics:
                     diagnostics.run_event("renderer_finished", phase=phase, model=model, attempt=attempt + 1, elapsed_seconds=elapsed, status_code=status_code)
                 break
@@ -94,7 +94,7 @@ def _render_with_openai_compatible_api(*, endpoint: str, api_key: str, model: st
                 time.sleep(delay)
         except RunCancelled:
             if diagnostics:
-                diagnostics.run_event("renderer_cancelled", phase=phase, model=model, attempt=attempt + 1, elapsed_seconds=elapsed)
+                diagnostics.run_event("renderer_cancelled", phase=phase, model=model, attempt=attempt + 1, elapsed_seconds=round(time.monotonic() - started, 3))
             raise
         except Exception as exc:
             elapsed = round(time.monotonic() - started, 3)
