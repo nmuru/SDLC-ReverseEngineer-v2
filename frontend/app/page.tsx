@@ -109,8 +109,6 @@ export default function Home() {
     let cancelled = false;
     async function restoreWorkspace() {
       try {
-        // Workspace state is intentionally tab-scoped: refresh the same tab restores it,
-        // while a newly opened tab starts with a clean workspace.
         window.localStorage.removeItem(STORAGE_KEY);
         const raw = window.sessionStorage.getItem(STORAGE_KEY);
         if (!raw) { setRestored(true); return; }
@@ -190,8 +188,9 @@ export default function Home() {
     if (!repoUrl.trim() || phasesToRun.length === 0) { setError("Enter a repository URL and select at least one SDLC phase before starting."); return; }
     const nextRunId = runId && !isDemo ? runId : makeRunId();
     setRunId(nextRunId); setLoading(true); setStopping(false); setStopped(false); setIsDemo(false); setAnalysisStarted(true); setSelectionView(null); setAnalysisComplete(false); setError(""); setFailedPhases([]);
+    setCompletionMessages([]); setActivePhase(phasesToRun[0]);
     setCompletedPhases((previous) => isDemo ? [] : previous.filter((phase) => phasesToRun.includes(phase)));
-    setAnalysisResult((previous) => previous ?? emptyResult(repoUrl));
+    setAnalysisResult(isDemo ? emptyResult(repoUrl) : (previous => previous ?? emptyResult(repoUrl)) as never);
     try {
       const response = await fetch(`${API_BASE_URL}/api/analyze`, { method: "POST", headers: { Accept: "text/event-stream", "Content-Type": "application/json" }, body: JSON.stringify({ repo_url: repoUrl, selected_phases: phasesToRun, work_id: nextRunId, provider, model, api_key: apiKey }) });
       if (!response.ok) { let message = "Analysis failed."; try { const data = await response.json(); if (typeof data?.detail === "string") message = data.detail; } catch {} throw new Error(message); }
