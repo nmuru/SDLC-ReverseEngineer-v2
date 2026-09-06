@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import WorkspaceCloseControl from "./workspace-close-control";
 
 export const metadata: Metadata = {
   title: "ReverseEngineer-SDLC",
@@ -7,5 +8,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body>{children}</body></html>;
+  return <html lang="en"><body><WorkspaceCloseControl />{children}</body></html>;
 }
