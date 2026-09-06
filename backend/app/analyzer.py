@@ -7,7 +7,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from typing import Callable, Optional
 
-from .agent_runner import clone_repository, github_repository_size_bytes, repository_size_bytes, run_phase_agent
+from .agent_runner import github_repository_size_bytes, repository_size_bytes, run_phase_agent
+from .cancellable_clone import clone_repository
 from .config import settings
 from .exporter import create_download_package
 from .phase_intelligence import build_phase_intelligence
@@ -124,8 +125,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     if not output_root.is_absolute(): output_root = Path(__file__).resolve().parents[1] / output_root
     output_run_dir = output_root / run_id; output_run_dir.mkdir(parents=True, exist_ok=True)
     stale_download = output_run_dir / "sdlc-documentation.zip"
-    if stale_download.exists():
-        stale_download.unlink()
+    if stale_download.exists(): stale_download.unlink()
     diagnostics_dir = Path(settings.resource_diagnostics_dir)
     if not diagnostics_dir.is_absolute(): diagnostics_dir = output_run_dir / diagnostics_dir
     diagnostics = ResourceDiagnostics(enabled=settings.resource_diagnostics_enabled, output_dir=diagnostics_dir, sample_interval_seconds=settings.resource_diagnostics_interval_seconds, run_id=run_id)
@@ -141,7 +141,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
             if github_size_bytes > max_bytes: raise _repository_size_limit_error()
 
         with tempfile.TemporaryDirectory(prefix="reverse-engineer-") as tmp:
-            workspace = Path(tmp); diagnostics.run_event("workspace_created", workspace=str(workspace)); repository = clone_repository(repo_url, workspace); _check_cancelled(run_control)
+            workspace = Path(tmp); diagnostics.run_event("workspace_created", workspace=str(workspace)); repository = clone_repository(repo_url, workspace, run_control=run_control); _check_cancelled(run_control)
             size_bytes = repository_size_bytes(repository)
             if size_bytes > max_bytes: raise _repository_size_limit_error()
             diagnostics.run_event("repository_cloned", repository=str(repository), repository_size_bytes=size_bytes)
@@ -191,8 +191,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     except RunCancelled:
         diagnostics.run_event("analysis_cancelled", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures]); raise
     except Exception as exc:
-        if not failures:
-            diagnostics.run_event("analysis_failed", error_type=type(exc).__name__, error=str(exc))
+        if not failures: diagnostics.run_event("analysis_failed", error_type=type(exc).__name__, error=str(exc))
         raise
     finally:
         diagnostics.stop()
