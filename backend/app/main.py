@@ -52,17 +52,14 @@ def _cleanup_run_dir(work_id: str) -> bool:
     return True
 
 
-def _cleanup_after_run_finishes(control: RunControl, timeout_seconds: float = 120.0) -> None:
+def _wait_for_terminal(control: RunControl, timeout_seconds: float = 120.0) -> dict[str, Any]:
     deadline = time.monotonic() + timeout_seconds
     while time.monotonic() < deadline:
-        if control.snapshot().get("status") in {"completed", "failed", "cancelled"}:
-            try:
-                _cleanup_run_dir(control.run_id)
-            except OSError:
-                logger.exception("Unable to clean production output for work_id=%s", control.run_id)
-            return
-        time.sleep(0.5)
-    logger.warning("Production cleanup timed out while waiting for work_id=%s", control.run_id)
+        state = control.snapshot()
+        if state.get("status") in {"completed", "failed", "cancelled"}:
+            return state
+        time.sleep(0.2)
+    raise TimeoutError(f"Analysis did not terminate within {timeout_seconds:.0f} seconds.")
 
 
 def _read_phase_result(run_id: str, phase: str) -> str | None:
@@ -120,26 +117,42 @@ def stop_analysis(work_id: str) -> dict[str, Any]:
 
 @app.post("/api/analysis/{work_id}/close")
 def close_analysis(work_id: str) -> dict[str, Any]:
-    """Close a UI workspace; production mode removes its server-side output."""
+    """Hard-close a UI workspace: cancel its run, wait for termination, then delete all run output."""
     run_dir = _run_dir(work_id)
     with _run_controls_lock:
         control = _run_controls.get(work_id)
 
-    if settings.runtime_mode.lower() != "production":
-        return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": True, "cleanup_scheduled": False}
+    if control is not None:
+        state = control.snapshot()
+        if state.get("status") in {"running", "cancelling"}:
+            control.cancel()
+            try:
+                state = _wait_for_terminal(control)
+            except TimeoutError as exc:
+                raise HTTPException(status_code=504, detail=str(exc)) from exc
+    else:
+        state = load_persisted_run(run_dir / "run-state.json")
+        if state is None:
+            if not run_dir.exists():
+                return {"run_id": work_id, "deleted": False, "already_closed": True}
+            state = {"status": "unknown"}
 
-    if control is not None and control.snapshot().get("status") in {"running", "cancelling"}:
-        control.cancel()
-        Thread(target=_cleanup_after_run_finishes, args=(control,), daemon=True).start()
-        return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": False, "cleanup_scheduled": True}
+    try:
+        deleted = _cleanup_run_dir(work_id)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to clean analysis output: {exc}") from exc
 
-    deleted = False
-    if run_dir.exists():
-        try:
-            deleted = _cleanup_run_dir(work_id)
-        except OSError as exc:
-            raise HTTPException(status_code=500, detail=f"Unable to clean analysis output: {exc}") from exc
-    return {"run_id": work_id, "runtime_mode": settings.runtime_mode, "retained": False, "cleanup_scheduled": False, "deleted": deleted}
+    with _run_controls_lock:
+        _run_controls.pop(work_id, None)
+
+    return {
+        "run_id": work_id,
+        "runtime_mode": settings.runtime_mode,
+        "retained": False,
+        "cleanup_scheduled": False,
+        "deleted": deleted,
+        "terminal_status": state.get("status"),
+    }
 
 
 @app.get("/api/analysis/{work_id}/download")
@@ -178,8 +191,8 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
 
     def run_analysis() -> None:
         control: RunControl | None = None
+        resolved_run_id = request.work_id
         try:
-            resolved_run_id = request.work_id
             if not resolved_run_id:
                 import uuid
                 resolved_run_id = uuid.uuid4().hex
