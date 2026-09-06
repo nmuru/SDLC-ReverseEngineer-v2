@@ -4,7 +4,7 @@ import logging
 import shutil
 import time
 from pathlib import Path
-from queue import Queue
+from queue import Empty, Queue
 from threading import Lock, Thread
 from typing import Any
 
@@ -252,9 +252,16 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
 
     async def event_stream():
         while True:
-            event = await asyncio.to_thread(event_queue.get)
+            with _run_controls_lock:
+                control = _run_controls.get(run_id) if run_id else None
+            if control:
+                control.touch()
+            try:
+                event = await asyncio.to_thread(event_queue.get, True, 1.0)
+            except Empty:
+                continue
             yield f"data: {json.dumps(event, ensure_ascii=False)}\n\n"
             if event["type"] in {"analysis_completed", "analysis_failed", "analysis_cancelled"}:
                 break
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no"})
+    return StreamingResponse(event_stream(), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no-cache"})
