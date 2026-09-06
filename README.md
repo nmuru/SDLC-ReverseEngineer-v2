@@ -22,6 +22,15 @@ The workspace includes a **Stop analysis** control. It cancels the selected anal
 
 The progressive-results state remains the primary UI: completed phases stay readable while remaining phases continue, including the `10 of 11 phases have completed` case. Refresh recovery and stopping are additive to that experience.
 
+## Output retention and runtime mode
+
+Run diagnostics and generated phase artifacts are written under `output-content/{work_id}`. The generic `runtime_mode` setting controls their lifecycle and defaults to `evaluation` so V1 evaluation data is retained.
+
+- `evaluation` — retain per-run output for diagnostics, evaluation, and troubleshooting.
+- `production` — allow an explicit UI close/cleanup request to remove that run's output. If the run is still active, the backend cancels it first and removes the folder after cancellation completes.
+
+Set `RUNTIME_MODE=production` in the backend environment when production retention behavior is desired. Browser refresh does not trigger cleanup; cleanup is scoped to the specific `work_id`. The browser does not provide a reliable signal that distinguishes closing a tab/window from refreshing it, so cleanup should be initiated by an explicit UI close action rather than by `pagehide`/`beforeunload` alone.
+
 ## Rate limits and failures
 
 The analysis endpoint is an event stream. Backend validation and execution errors are returned as an `analysis_failed` event so the frontend can display a useful message instead of waiting indefinitely. Renderer requests retry HTTP 429 responses with bounded backoff before reporting failure.
