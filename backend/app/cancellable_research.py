@@ -10,6 +10,7 @@ from __future__ import annotations
 import multiprocessing as mp
 import traceback
 from pathlib import Path
+from queue import Empty
 from typing import Any, Callable
 
 from .run_control import RunCancelled, RunControl
@@ -31,14 +32,7 @@ def _research_worker(kind: str, kwargs: dict[str, Any], result_queue: Any) -> No
         result = function(**kwargs)
         result_queue.put({"ok": True, "result": result})
     except BaseException as exc:
-        result_queue.put(
-            {
-                "ok": False,
-                "error_type": type(exc).__name__,
-                "error": str(exc),
-                "traceback": traceback.format_exc(),
-            }
-        )
+        result_queue.put({"ok": False, "error_type": type(exc).__name__, "error": str(exc), "traceback": traceback.format_exc()})
 
 
 def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl | None) -> str:
@@ -63,16 +57,15 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
         if run_control and run_control.is_cancelled():
             raise RunCancelled("Analysis stopped by the user.")
 
-        if result_queue.empty():
+        try:
+            payload = result_queue.get(timeout=5)
+        except Empty as exc:
             raise RuntimeError(
                 f"Semantic research worker exited without a result (kind={kind}, exit_code={process.exitcode})."
-            )
-        payload = result_queue.get()
+            ) from exc
         if payload.get("ok"):
             return str(payload.get("result") or "")
-        raise RuntimeError(
-            f"{payload.get('error_type', 'SemanticResearchError')}: {payload.get('error', 'semantic research failed')}"
-        )
+        raise RuntimeError(f"{payload.get('error_type', 'SemanticResearchError')}: {payload.get('error', 'semantic research failed')}")
     finally:
         if process.is_alive():
             process.terminate()
@@ -85,30 +78,8 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
 
 
 def run_repository_research(*, intelligence: Any, repository: Path, provider: str, model: str, api_key: str, run_control: RunControl | None = None) -> str:
-    return _run_cancellable(
-        "repository",
-        {
-            "intelligence": intelligence,
-            "repository": repository,
-            "provider": provider,
-            "model": model,
-            "api_key": api_key,
-        },
-        run_control,
-    )
+    return _run_cancellable("repository", {"intelligence": intelligence, "repository": repository, "provider": provider, "model": model, "api_key": api_key}, run_control)
 
 
 def run_phase_research(*, phase: str, phase_intelligence: str, repository_research: str, repository: Path, provider: str, model: str, api_key: str, run_control: RunControl | None = None) -> str:
-    return _run_cancellable(
-        "phase",
-        {
-            "phase": phase,
-            "phase_intelligence": phase_intelligence,
-            "repository_research": repository_research,
-            "repository": repository,
-            "provider": provider,
-            "model": model,
-            "api_key": api_key,
-        },
-        run_control,
-    )
+    return _run_cancellable("phase", {"phase": phase, "phase_intelligence": phase_intelligence, "repository": repository, "provider": provider, "model": model, "api_key": api_key, "phase_intelligence": phase_intelligence, "repository_research": repository_research}, run_control)
