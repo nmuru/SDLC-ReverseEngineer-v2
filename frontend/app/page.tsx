@@ -45,11 +45,7 @@ type AnalysisEvent =
   | { type: "analysis_cancelled"; repo_url: string; run_id: string; completed_phases: string[]; failed_phases?: Failure[] }
   | { type: "analysis_failed"; repo_url: string; run_id?: string; error: string };
 type RunStatus = { run_id: string; status: string; repo_url: string; selected_phases: string[]; completed_phases: string[]; failures: Failure[]; active_phase: string | null; results: Record<string, string> };
-
-type StoredWorkspace = {
-  runId: string; repoUrl: string; selectedPhases: string[]; completedPhases: string[];
-  activePhase: string; status: string; provenance: { model: string } | null;
-};
+type StoredWorkspace = { runId: string; repoUrl: string; selectedPhases: string[]; completedPhases: string[]; activePhase: string; status: string; provenance: { model: string } | null };
 
 const phases: Phase[] = [
   { id: "business-purpose", label: "Business Purpose", shortLabel: "Purpose" },
@@ -64,7 +60,6 @@ const phases: Phase[] = [
   { id: "testing-harness", label: "Testing Harness", shortLabel: "Testing" },
   { id: "future-directions", label: "Future Directions", shortLabel: "Future" },
 ];
-
 const defaultSelectedPhases = phases.map((phase) => phase.id);
 const phaseResultMap: Record<Phase["id"], keyof AnalysisResult> = {
   "business-purpose": "business_purpose", "business-requirements": "business_requirements", features: "features",
@@ -84,10 +79,7 @@ const STORAGE_KEY = "reverse-engineer-sdlc:v1-workspace";
 function emptyResult(repoUrl = ""): AnalysisResult {
   return { repo_url: repoUrl, business_purpose: "", business_requirements: "", features: "", software_requirements: "", technology_architecture: "", design_pattern: "", high_level_design: "", low_level_design: "", implementation_detail: "", testing_harness: "", future_directions: "" };
 }
-
-function makeRunId() {
-  return (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`).replace(/[^a-zA-Z0-9]/g, "");
-}
+function makeRunId() { return (typeof crypto !== "undefined" && crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`).replace(/[^a-zA-Z0-9]/g, ""); }
 
 export default function Home() {
   const [repoUrl, setRepoUrl] = useState("");
@@ -130,13 +122,8 @@ export default function Home() {
         if (cancelled) return;
         applyStatus(status);
       } catch (err) {
-        if (!cancelled) {
-          window.localStorage.removeItem(STORAGE_KEY);
-          setError(err instanceof Error ? err.message : "Unable to restore the previous analysis.");
-        }
-      } finally {
-        if (!cancelled) setRestored(true);
-      }
+        if (!cancelled) { window.localStorage.removeItem(STORAGE_KEY); setError(err instanceof Error ? err.message : "Unable to restore the previous analysis."); }
+      } finally { if (!cancelled) setRestored(true); }
     }
     restoreWorkspace();
     return () => { cancelled = true; };
@@ -170,9 +157,7 @@ export default function Home() {
     setFailedPhases((status.failures ?? []).map((failure) => failure.phase));
     setAnalysisResult((previous) => {
       const next = { ...(previous ?? emptyResult(status.repo_url)), repo_url: status.repo_url };
-      for (const [phase, content] of Object.entries(status.results ?? {})) {
-        const key = phaseResultMap[phase as Phase["id"]]; if (key) next[key] = content;
-      }
+      for (const [phase, content] of Object.entries(status.results ?? {})) { const key = phaseResultMap[phase as Phase["id"]]; if (key) next[key] = content; }
       return next;
     });
     if (status.status === "completed") { setAnalysisComplete(true); setLoading(false); setStopping(false); setStopped(false); }
@@ -183,18 +168,11 @@ export default function Home() {
 
   async function loadDemoDocumentation() {
     try {
-      const documents = await Promise.all(phases.map(async (phase) => {
-        const response = await fetch(`/vercel-demo/${phase.id}.md`);
-        if (!response.ok) throw new Error(`Unable to load demo document: ${phase.id}.md (${response.status})`);
-        return [phase.id, await response.text()] as const;
-      }));
-      const result = emptyResult(DEMO_REPO_URL);
-      for (const [phaseId, content] of documents) result[phaseResultMap[phaseId as Phase["id"]]] = content;
-      setAnalysisResult(result);
+      const documents = await Promise.all(phases.map(async (phase) => { const response = await fetch(`/vercel-demo/${phase.id}.md`); if (!response.ok) throw new Error(`Unable to load demo document: ${phase.id}.md (${response.status})`); return [phase.id, await response.text()] as const; }));
+      const result = emptyResult(DEMO_REPO_URL); for (const [phaseId, content] of documents) result[phaseResultMap[phaseId as Phase["id"]]] = content; setAnalysisResult(result);
     } catch (err) { setError(err instanceof Error ? err.message : "Unable to load the Vercel Commerce demo documentation."); }
   }
-
-  useEffect(() => { if (restored) loadDemoDocumentation(); }, [restored]);
+  useEffect(() => { if (restored && !window.localStorage.getItem(STORAGE_KEY)) loadDemoDocumentation(); }, [restored]);
 
   function viewDemo() {
     if (!analysisResult) return;
@@ -213,59 +191,39 @@ export default function Home() {
     setAnalysisResult((previous) => previous ?? emptyResult(repoUrl));
     try {
       const response = await fetch(`${API_BASE_URL}/api/analyze`, { method: "POST", headers: { Accept: "text/event-stream", "Content-Type": "application/json" }, body: JSON.stringify({ repo_url: repoUrl, selected_phases: phasesToRun, work_id: nextRunId, provider, model, api_key: apiKey }) });
-      if (!response.ok) {
-        let message = "Analysis failed.";
-        try { const data = await response.json(); if (typeof data?.detail === "string") message = data.detail; } catch {}
-        throw new Error(message);
-      }
+      if (!response.ok) { let message = "Analysis failed."; try { const data = await response.json(); if (typeof data?.detail === "string") message = data.detail; } catch {} throw new Error(message); }
       if (!response.body) throw new Error("The analysis stream was not available.");
       const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
       while (true) {
         const { value, done } = await reader.read(); if (done) break;
         buffer += decoder.decode(value, { stream: true }); const events = buffer.split("\n\n"); buffer = events.pop() ?? "";
         for (const eventBlock of events) {
-          const dataLines = eventBlock.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim());
-          if (!dataLines.length) continue;
+          const dataLines = eventBlock.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()); if (!dataLines.length) continue;
           let eventData: AnalysisEvent; try { eventData = JSON.parse(dataLines.join("\n")) as AnalysisEvent; } catch { continue; }
           if (eventData.type === "phase_completed") {
-            setRunId(eventData.run_id); setProvenance(eventData.provenance ? { model: eventData.provenance.model } : { model });
-            setCompletionMessages((previous) => previous.includes(eventData.phase_name) ? previous : [...previous, `${eventData.phase_name} phase completed`]);
+            setRunId(eventData.run_id); setProvenance(eventData.provenance ? { model: eventData.provenance.model } : { model }); setCompletionMessages((previous) => previous.includes(eventData.phase_name) ? previous : [...previous, `${eventData.phase_name} phase completed`]);
             const resultKey = phaseResultMap[eventData.phase as Phase["id"]];
-            if (resultKey) {
-              setAnalysisResult((previous) => ({ ...(previous ?? emptyResult(repoUrl)), repo_url: repoUrl, [resultKey]: eventData.raw_analysis }));
-              setCompletedPhases((previous) => previous.includes(eventData.phase) ? previous : [...previous, eventData.phase]);
-              setActivePhase(eventData.phase);
-            }
+            if (resultKey) { setAnalysisResult((previous) => ({ ...(previous ?? emptyResult(repoUrl)), repo_url: repoUrl, [resultKey]: eventData.raw_analysis })); setCompletedPhases((previous) => previous.includes(eventData.phase) ? previous : [...previous, eventData.phase]); setActivePhase(eventData.phase); }
           } else if (eventData.type === "analysis_completed") {
-            setRunId(eventData.run_id); setAnalysisComplete(true); setLoading(false); setStopping(false); setStopped(false); setFailedPhases((eventData.failed_phases ?? []).map((failure) => failure.phase));
-            if ((eventData.failed_phases ?? []).length) setError(`${eventData.failed_phases.length} selected phase${eventData.failed_phases.length === 1 ? "" : "s"} could not be completed.`);
+            setRunId(eventData.run_id); setAnalysisComplete(true); setLoading(false); setStopping(false); setStopped(false); setFailedPhases((eventData.failed_phases ?? []).map((failure) => failure.phase)); if ((eventData.failed_phases ?? []).length) setError(`${eventData.failed_phases.length} selected phase${eventData.failed_phases.length === 1 ? "" : "s"} could not be completed.`);
           } else if (eventData.type === "analysis_cancelled") {
             setRunId(eventData.run_id); setAnalysisComplete(false); setLoading(false); setStopping(false); setStopped(true); setCompletedPhases(eventData.completed_phases ?? []); setFailedPhases((eventData.failed_phases ?? []).map((failure) => failure.phase));
-          } else if (eventData.type === "analysis_failed") {
-            setError(eventData.error); setAnalysisComplete(false); setLoading(false); setStopping(false);
-          }
+          } else if (eventData.type === "analysis_failed") { setError(eventData.error); setAnalysisComplete(false); setLoading(false); setStopping(false); }
         }
       }
-    } catch (err) {
-      if (!stopped) { setError(err instanceof Error ? err.message : "Analysis failed."); setAnalysisComplete(false); setLoading(false); }
-    }
+    } catch (err) { if (!stopped) { setError(err instanceof Error ? err.message : "Analysis failed."); setAnalysisComplete(false); setLoading(false); } }
   }
 
   async function stopAnalysis() {
     if (!runId || stopping || !loading) return;
     if (!window.confirm("Stop this analysis? No further phases will be started. Completed results will remain available.")) return;
     setStopping(true); setError("");
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/analysis/${runId}/stop`, { method: "POST" });
-      if (!response.ok) throw new Error("The backend did not accept the stop request.");
-      const status = await response.json() as RunStatus;
-      applyStatus(status);
-    } catch (err) { setStopping(false); setError(err instanceof Error ? err.message : "Unable to stop the analysis."); }
+    try { const response = await fetch(`${API_BASE_URL}/api/analysis/${runId}/stop`, { method: "POST" }); if (!response.ok) throw new Error("The backend did not accept the stop request."); const status = await response.json() as RunStatus; applyStatus(status); }
+    catch (err) { setStopping(false); setError(err instanceof Error ? err.message : "Unable to stop the analysis."); }
   }
 
   function resetAnalysis() {
-    window.localStorage.removeItem(STORAGE_KEY);
-    setAnalysisStarted(false); setIsDemo(false); setAnalysisComplete(false); setCompletedPhases([]); setCompletionMessages([]); setRepoUrl(""); setRunId(null); setProvider("openrouter"); setModel("openrouter/free"); setApiKey(""); setShowApiKey(false); setSelectedPhases(defaultSelectedPhases); setSelectionView(null); setActivePhase(phases[0].id); setAnalysisResult(null); setError(""); setLoading(false); setStopping(false); setStopped(false); setFailedPhases([]); setProvenance(null);
+    window.localStorage.removeItem(STORAGE_KEY); setAnalysisStarted(false); setIsDemo(false); setAnalysisComplete(false); setCompletedPhases([]); setCompletionMessages([]); setRepoUrl(""); setRunId(null); setProvider("openrouter"); setModel("openrouter/free"); setApiKey(""); setShowApiKey(false); setSelectedPhases(defaultSelectedPhases); setSelectionView(null); setActivePhase(phases[0].id); setAnalysisResult(null); setError(""); setLoading(false); setStopping(false); setStopped(false); setFailedPhases([]); setProvenance(null);
   }
 
   const activePhaseDefinition = phases.find((phase) => phase.id === activePhase) ?? phases[0];
@@ -276,30 +234,17 @@ export default function Home() {
 
   return <div className="app-shell">
     <header className="topbar"><div><div className="brand">ReverseEngineer-SDLC</div><div className="tagline">Repository → Software Engineering Dossier</div></div>{analysisStarted && repoUrl && <div className="repo-pill" title={repoUrl}>{repoUrl.replace(/^https?:\/\//, "")}</div>}</header>
-    {!analysisStarted ? <main className="landing"><div className="landing-card">
-      <div className="eyebrow">AI SOFTWARE REVERSE ENGINEERING</div><h1>Turn a GitHub repository into an SDLC dossier.</h1><p className="landing-copy">Submit a repository URL to progressively reconstruct its business purpose, business requirements, features, software requirements, architecture, design, implementation, testing strategy, and future directions.</p>
-      <fieldset className="phase-selection" style={{ marginTop: 28 }}><legend>AI model</legend><div style={{ display: "grid", gap: 14 }}>
-        <label style={{ display: "grid", gap: 7 }}><span style={{ fontSize: 13, fontWeight: 700 }}>Provider</span><select value={provider} onChange={(event) => setProvider(event.target.value)} disabled={loading} aria-label="AI provider">{providers.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-        <label style={{ display: "grid", gap: 7 }}><span style={{ fontSize: 13, fontWeight: 700 }}>Model</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder={providers.find((item) => item.id === provider)?.placeholder} disabled={loading} required aria-label="AI model" autoComplete="off" /></label>
-        <label style={{ display: "grid", gap: 7 }}><span style={{ fontSize: 13, fontWeight: 700 }}>API key</span><div style={{ display: "flex", gap: 8 }}><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type={showApiKey ? "text" : "password"} placeholder="Enter your API key" disabled={loading} required aria-label="AI provider API key" autoComplete="off" /><button type="button" onClick={() => setShowApiKey((value) => !value)} disabled={loading}>{showApiKey ? "Hide" : "Show"}</button></div></label>
-        <p style={{ margin: 0, color: "var(--muted)", fontSize: 12 }}>Your API key is used for this analysis request and is not saved by this frontend.</p>
-      </div></fieldset>
+    {!analysisStarted ? <main className="landing"><div className="landing-card"><div className="eyebrow">AI SOFTWARE REVERSE ENGINEERING</div><h1>Turn a GitHub repository into an SDLC dossier.</h1><p className="landing-copy">Submit a repository URL to progressively reconstruct its business purpose, business requirements, features, software requirements, architecture, design, implementation, testing strategy, and future directions.</p>
+      <fieldset className="phase-selection" style={{ marginTop: 28 }}><legend>AI model</legend><div style={{ display: "grid", gap: 14 }}><label style={{ display: "grid", gap: 7 }}><span style={{ fontSize: 13, fontWeight: 700 }}>Provider</span><select value={provider} onChange={(event) => setProvider(event.target.value)} disabled={loading} aria-label="AI provider">{providers.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label><label style={{ display: "grid", gap: 7 }}><span style={{ fontSize: 13, fontWeight: 700 }}>Model</span><input value={model} onChange={(event) => setModel(event.target.value)} placeholder={providers.find((item) => item.id === provider)?.placeholder} disabled={loading} required aria-label="AI model" autoComplete="off" /></label><label style={{ display: "grid", gap: 7 }}><span style={{ fontSize: 13, fontWeight: 700 }}>API key</span><div style={{ display: "flex", gap: 8 }}><input value={apiKey} onChange={(event) => setApiKey(event.target.value)} type={showApiKey ? "text" : "password"} placeholder="Enter your API key" disabled={loading} required aria-label="AI provider API key" autoComplete="off" /><button type="button" onClick={() => setShowApiKey((value) => !value)} disabled={loading}>{showApiKey ? "Hide" : "Show"}</button></div></label><p style={{ margin: 0, color: "var(--muted)", fontSize: 12 }}>Your API key is used for this analysis request and is not saved by this frontend.</p></div></fieldset>
       <form onSubmit={analyze} className="repo-form"><input value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} placeholder="https://github.com/owner/repository" type="url" required aria-label="GitHub repository URL" /><button type="submit" disabled={loading}>{loading ? "Reverse engineering..." : "Reverse engineer"}</button></form>
       <fieldset className="phase-selection"><legend>Select SDLC phases</legend><div className="phase-selection-grid">{phases.map((phase) => <label key={phase.id} className="phase-option"><input type="checkbox" checked={selectedPhases.includes(phase.id)} onChange={() => setSelectedPhases((previous) => previous.includes(phase.id) ? previous.filter((id) => id !== phase.id) : [...previous, phase.id])} disabled={loading} /><span>{phase.label}</span></label>)}</div></fieldset>
-      {error && <div className="error-banner" role="alert">{error}</div>}
-      <button type="button" onClick={viewDemo} disabled={loading || !analysisResult} style={{ width: "100%", marginTop: 14, minHeight: 44, border: "1px solid var(--accent)", borderRadius: 9, background: "var(--accent)", color: "white", fontWeight: 700 }}>View Vercel Commerce example</button>
-      <div className="landing-note">Analysis is performed by the backend coding-agent pipeline.</div>
+      {error && <div className="error-banner" role="alert">{error}</div>}<button type="button" onClick={viewDemo} disabled={loading || !analysisResult} style={{ width: "100%", marginTop: 14, minHeight: 44, border: "1px solid var(--accent)", borderRadius: 9, background: "var(--accent)", color: "white", fontWeight: 700 }}>View Vercel Commerce example</button><div className="landing-note">Analysis is performed by the backend coding-agent pipeline.</div>
     </div></main> : <div className="workspace">
-      <aside className="sidebar"><div className="sidebar-heading">SDLC Dossier</div><div className="progress-label">{loading ? progressText : analysisComplete ? "Analysis complete" : stopped ? `${completedPhases.length} of ${denominator} phases completed before stop` : error ? "Analysis failed" : "Analysis"}</div>
-        <nav className="phase-nav" aria-label="SDLC phases"><button className={`phase-tab selection-tab ${selectionView === "setup" ? "active" : ""}`} onClick={() => setSelectionView("setup")}><span className="phase-number">00</span><span className="phase-name">Repository & phases</span><span className="phase-status">•</span></button>
-          {phases.map((phase, index) => { const complete = completedPhases.includes(phase.id); return <button key={phase.id} className={`phase-tab ${activePhase === phase.id ? "active" : ""} ${!complete ? "locked" : ""}`} onClick={() => { if (complete) { setSelectionView(null); setActivePhase(phase.id); } }} disabled={!complete}><span className="phase-number">{String(index + 1).padStart(2, "0")}</span><span className="phase-name">{phase.label}</span><span className={`phase-status ${complete ? "done" : ""}`}>{complete ? "✓" : "•"}</span></button>; })}
-        </nav><button className="new-analysis" onClick={resetAnalysis} disabled={loading || stopping}>+ New repository</button>
-      </aside>
+      <aside className="sidebar"><div className="sidebar-heading">SDLC Dossier</div><div className="progress-label">{loading ? progressText : analysisComplete ? "Analysis complete" : stopped ? `${completedPhases.length} of ${denominator} phases completed before stop` : error ? "Analysis failed" : "Analysis"}</div><nav className="phase-nav" aria-label="SDLC phases"><button className={`phase-tab selection-tab ${selectionView === "setup" ? "active" : ""}`} onClick={() => setSelectionView("setup")}><span className="phase-number">00</span><span className="phase-name">Repository & phases</span><span className="phase-status">•</span></button>{phases.map((phase, index) => { const complete = completedPhases.includes(phase.id); return <button key={phase.id} className={`phase-tab ${activePhase === phase.id ? "active" : ""} ${!complete ? "locked" : ""}`} onClick={() => { if (complete) { setSelectionView(null); setActivePhase(phase.id); } }} disabled={!complete}><span className="phase-number">{String(index + 1).padStart(2, "0")}</span><span className="phase-name">{phase.label}</span><span className={`phase-status ${complete ? "done" : ""}`}>{complete ? "✓" : "•"}</span></button>; })}</nav><button className="new-analysis" onClick={resetAnalysis} disabled={loading || stopping}>+ New repository</button></aside>
       <main className="content">
         {selectionView === "setup" ? <section className="selection-panel"><div className="eyebrow">ANALYSIS SETUP</div><h1>Continue or rerun phases</h1><p className="section-intro">Select the phases you want to run. Completed phases remain readable and can be rerun using the same work ID after the current run has stopped or completed.</p><fieldset className="phase-selection"><legend>Run phases</legend><div className="phase-selection-grid">{phases.map((phase) => <label key={phase.id} className="phase-option"><input type="checkbox" checked={selectedPhases.includes(phase.id)} onChange={() => setSelectedPhases((previous) => previous.includes(phase.id) ? previous.filter((id) => id !== phase.id) : [...previous, phase.id])} disabled={loading || stopping} /><span>{phase.label}{completedPhases.includes(phase.id) ? " (completed, rerunnable)" : ""}</span></label>)}</div></fieldset><form onSubmit={analyze} className="repo-form"><input value={repoUrl} onChange={(event) => setRepoUrl(event.target.value)} placeholder="https://github.com/owner/repository" type="url" required aria-label="GitHub repository URL" disabled={loading || stopping} /><button type="submit" disabled={loading || stopping}>{loading ? "Running..." : "Run selected phases"}</button></form>{error && <div className="error-banner" role="alert">{error}</div>}</section>
         : isDemo ? <><section className="completion-banner"><div><div className="eyebrow">EXAMPLE DOCUMENTATION</div><h1>Vercel Commerce software dossier</h1><p>Browse the pre-generated eleven-phase reverse-engineering documentation.</p></div><div className="completion-mark">✓</div></section><section className="dossier-content"><div className="eyebrow">STAGE {String(phases.findIndex((phase) => phase.id === activePhase) + 1).padStart(2, "0")}</div><h2>{activePhaseDefinition.label}</h2><p className="section-intro">Pre-generated reverse-engineering documentation for the Vercel Commerce repository.</p><article className="evidence-card markdown-content">{activeResult ? <ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code({ className, children, ...props }) { if (/language-mermaid/.test(className || "")) return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />; return <code className={className} {...props}>{children}</code>; } }}>{activeResult}</ReactMarkdown> : <div className="mermaid-loading">Loading Vercel Commerce documentation...</div>}</article></section></>
-        : <>
-          {loading && <section className="progress-screen"><div className="spinner"/><div><div className="eyebrow">ANALYSIS IN PROGRESS</div><h1>Results are arriving progressively</h1><p>{progressText}</p>{stopping ? <p style={{ fontWeight: 700 }}>Stop requested. Waiting for the current backend work to unwind safely.</p> : <button type="button" onClick={stopAnalysis} disabled={stopping} style={{ minHeight: 42, padding: "0 16px", border: "1px solid #b42318", borderRadius: 8, background: "white", color: "#b42318", fontWeight: 700 }}>{stopping ? "Stopping analysis..." : "Stop analysis"}</button>}{completionMessages.length > 0 && <div className="completion-messages" aria-live="polite">{completionMessages.map((message) => <div key={message}>{message}</div>)}</div>}</div></section>}
+        : <>{loading && <section className="progress-screen"><div className="spinner"/><div><div className="eyebrow">ANALYSIS IN PROGRESS</div><h1>Results are arriving progressively</h1><p>{progressText}</p>{stopping ? <p style={{ fontWeight: 700 }}>Stop requested. Waiting for the current backend work to unwind safely.</p> : <button type="button" onClick={stopAnalysis} disabled={stopping} style={{ minHeight: 42, padding: "0 16px", border: "1px solid #b42318", borderRadius: 8, background: "white", color: "#b42318", fontWeight: 700 }}>{stopping ? "Stopping analysis..." : "Stop analysis"}</button>}{completionMessages.length > 0 && <div className="completion-messages" aria-live="polite">{completionMessages.map((message) => <div key={message}>{message}</div>)}</div>}</div></section>}
           {stopped && <section className="completion-banner" style={{ borderColor: "#ead9c5", background: "#fffaf3" }}><div><div className="eyebrow">ANALYSIS STOPPED</div><h1>The analysis was stopped by the user.</h1><p>{completedPhases.length} of {denominator} phases completed. Completed results remain available.</p><button type="button" onClick={resetAnalysis} style={{ marginTop: 14, minHeight: 42, padding: "0 16px", border: 0, borderRadius: 8, background: "var(--accent)", color: "white", fontWeight: 700 }}>Back to Main Page</button></div></section>}
           {analysisComplete && <section className="completion-banner"><div><div className="eyebrow">REVERSE ENGINEERING COMPLETE</div><h1>Your software dossier is ready.</h1><p>Visit the individual SDLC tabs on the left to explore the reconstructed system.</p></div><div className="completion-mark">✓</div>{runId && <a className="download-button" href={`${API_BASE_URL}/api/analysis/${runId}/download`} download="sdlc-documentation.zip">Download ZIP</a>}</section>}
           {activeResult && <section className="dossier-content"><div className="eyebrow">STAGE {String(phases.findIndex((phase) => phase.id === activePhase) + 1).padStart(2, "0")}</div><h2>{activePhaseDefinition.label}</h2><p className="section-intro">Analysis returned by the backend coding-agent pipeline for this SDLC phase.{provenance ? ` Model: ${provenance.model}` : ""}</p><article className="evidence-card markdown-content"><ReactMarkdown remarkPlugins={[remarkGfm]} components={{ code({ className, children, ...props }) { if (/language-mermaid/.test(className || "")) return <MermaidDiagram chart={String(children).replace(/\n$/, "")} />; return <code className={className} {...props}>{children}</code>; } }}>{activeResult}</ReactMarkdown></article></section>}
