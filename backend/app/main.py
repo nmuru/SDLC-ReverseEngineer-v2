@@ -196,33 +196,32 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
     """Run the analysis pipeline and stream completed phases and actionable failures."""
     repo_url = str(request.repo_url)
     event_queue: Queue[dict[str, Any]] = Queue()
-    run_id = request.work_id or ""
-    stream_run_id = {"value": run_id}
+    requested_run_id = request.work_id
 
-    if run_id:
+    if requested_run_id:
         with _run_controls_lock:
-            existing = _run_controls.get(run_id)
+            existing = _run_controls.get(requested_run_id)
         if existing and existing.snapshot().get("status") in {"running", "cancelling"}:
             raise HTTPException(status_code=409, detail="An analysis with this work ID is already running.")
+
+    try:
+        resolved_run_id = requested_run_id or __import__("uuid").uuid4().hex
+        output_run_dir = _output_root() / resolved_run_id
+        output_run_dir.mkdir(parents=True, exist_ok=True)
+        control = RunControl(resolved_run_id, output_run_dir / "run-state.json")
+        control.initialize(repo_url=repo_url, selected_phases=request.selected_phases)
+        with _run_controls_lock:
+            _run_controls[resolved_run_id] = control
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail=f"Unable to initialize analysis workspace: {exc}") from exc
+
+    stream_run_id = {"value": resolved_run_id}
 
     def on_phase_complete(phase_result: dict) -> None:
         event_queue.put({"type": "phase_completed", "phase": phase_result["phase"], "phase_name": phase_result["phase_name"], "raw_analysis": phase_result["raw_analysis"], "raw_path": phase_result["raw_path"], "run_id": phase_result["run_id"], "provenance": phase_result.get("provenance")})
 
     def run_analysis() -> None:
-        control: RunControl | None = None
-        resolved_run_id = request.work_id
         try:
-            if not resolved_run_id:
-                import uuid
-                resolved_run_id = uuid.uuid4().hex
-            stream_run_id["value"] = resolved_run_id
-            output_run_dir = _output_root() / resolved_run_id
-            output_run_dir.mkdir(parents=True, exist_ok=True)
-            control = RunControl(resolved_run_id, output_run_dir / "run-state.json")
-            control.initialize(repo_url=repo_url, selected_phases=request.selected_phases)
-            with _run_controls_lock:
-                _run_controls[resolved_run_id] = control
-
             results = analyze_repository(repo_url, phases_per_batch=settings.phases_per_batch, batch_mode=settings.batch_mode, selected_phases=request.selected_phases, work_id=resolved_run_id, on_phase_complete=on_phase_complete, provider=request.provider, model=request.model, api_key=request.api_key, run_control=control)
             if control.is_cancelled():
                 control.finish("cancelled")
@@ -231,18 +230,15 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
                 control.finish("completed")
                 event_queue.put({"type": "analysis_completed", "repo_url": repo_url, "run_id": results["run_id"], "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
         except RunCancelled:
-            if control:
-                control.finish("cancelled")
-                event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": control.run_id, "completed_phases": list(control.snapshot()["completed_phases"]), "failed_phases": control.snapshot()["failures"]})
+            control.finish("cancelled")
+            event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": control.run_id, "completed_phases": list(control.snapshot()["completed_phases"]), "failed_phases": control.snapshot()["failures"]})
         except (AgentRunnerError, ValueError) as exc:
-            if control:
-                control.finish("failed")
-            event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id if control else resolved_run_id, "error": str(exc)})
+            control.finish("failed")
+            event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": str(exc)})
         except Exception as exc:
-            if control:
-                control.finish("failed")
+            control.finish("failed")
             logger.exception("Unexpected analysis failure: repo_url=%s", repo_url)
-            event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id if control else resolved_run_id, "error": f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}"})
+            event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}"})
 
     Thread(target=run_analysis, daemon=True).start()
 
@@ -250,9 +246,9 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
         while True:
             current_run_id = stream_run_id["value"]
             with _run_controls_lock:
-                control = _run_controls.get(current_run_id) if current_run_id else None
-            if control:
-                control.touch()
+                active_control = _run_controls.get(current_run_id) if current_run_id else None
+            if active_control:
+                active_control.touch()
             try:
                 event = await asyncio.to_thread(event_queue.get, True, 1.0)
             except Empty:
