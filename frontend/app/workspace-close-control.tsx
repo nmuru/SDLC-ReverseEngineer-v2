@@ -30,10 +30,33 @@ export default function WorkspaceCloseControl() {
     };
   }, []);
 
+  async function waitForTerminal(runId: string) {
+    const deadline = Date.now() + 120000;
+    while (Date.now() < deadline) {
+      const response = await fetch(`${API_BASE_URL}/api/analysis/${runId}/status`, { cache: "no-store" });
+      if (response.ok) {
+        const status = await response.json() as { status?: string };
+        if (["completed", "failed", "cancelled"].includes(status.status ?? "")) return;
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 500));
+    }
+    throw new Error("The running analysis did not stop within the expected time. The workspace was not closed.");
+  }
+
   async function closeWorkspace() {
     if (!runId) return;
-    if (!window.confirm("Close this workspace? In production mode its server-side output will be removed. Refreshing the page does not close the workspace.")) return;
+    if (!window.confirm("Close this workspace? In production mode its server-side output will be removed. Any running analysis will be stopped first. Refreshing the page does not close the workspace.")) return;
     try {
+      const statusResponse = await fetch(`${API_BASE_URL}/api/analysis/${runId}/status`, { cache: "no-store" });
+      if (statusResponse.ok) {
+        const status = await statusResponse.json() as { status?: string };
+        if (["running", "cancelling"].includes(status.status ?? "")) {
+          const stopResponse = await fetch(`${API_BASE_URL}/api/analysis/${runId}/stop`, { method: "POST" });
+          if (!stopResponse.ok) throw new Error("The backend did not accept the request to stop the running analysis.");
+          await waitForTerminal(runId);
+        }
+      }
+
       const response = await fetch(`${API_BASE_URL}/api/analysis/${runId}/close`, { method: "POST", keepalive: true });
       if (!response.ok) throw new Error("The backend did not accept the workspace close request.");
       window.sessionStorage.removeItem(STORAGE_KEY);
