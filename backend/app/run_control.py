@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import threading
+import time
 from pathlib import Path
 from typing import Any, Optional
 
@@ -20,11 +21,21 @@ class RunControl:
         self.completed_phases: list[str] = []
         self.failures: list[dict[str, Any]] = []
         self.active_phase: Optional[str] = None
+        self.last_heartbeat = time.monotonic()
 
     def initialize(self, *, repo_url: str, selected_phases: list[str]) -> None:
         self.repo_url = repo_url
         self.selected_phases = list(selected_phases)
+        self.last_heartbeat = time.monotonic()
         self.persist()
+
+    def touch(self) -> None:
+        with self._lock:
+            self.last_heartbeat = time.monotonic()
+
+    def heartbeat_age_seconds(self) -> float:
+        with self._lock:
+            return max(0.0, time.monotonic() - self.last_heartbeat)
 
     def cancel(self) -> bool:
         with self._lock:
