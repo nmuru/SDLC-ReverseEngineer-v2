@@ -53,8 +53,9 @@ def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_i
         rendered_result = render_analysis(phase=phase_key, analysis=raw_result, provider=provider, model=actual_model, api_key=api_key)
         if not rendered_result.strip():
             raise RuntimeError(f"Renderer returned an empty result for phase '{phase_key}'.")
+        document = f"---\nmodel: {actual_model}\n---\n\n{rendered_result}\n"
         raw_path = phase_output_dir / "raw.md"
-        raw_path.write_text(rendered_result, encoding="utf-8")
+        raw_path.write_text(document, encoding="utf-8")
         provenance = {"model": actual_model}
         (phase_output_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
         if diagnostics:
