@@ -49,6 +49,7 @@ class RunControl:
 
     def phase_failed(self, failure: dict[str, Any]) -> None:
         with self._lock:
+            self.failures = [item for item in self.failures if item.get("phase") != failure.get("phase")]
             self.failures.append(failure)
             self.active_phase = None
         self.persist()
