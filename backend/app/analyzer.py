@@ -14,6 +14,7 @@ from .phase_intelligence import build_phase_intelligence
 from .renderer import render_analysis
 from .repository_intelligence import RepositoryIntelligence, collect_repository_intelligence
 from .resource_diagnostics import ResourceDiagnostics
+from .run_control import RunCancelled, RunControl
 from .semantic_research import run_phase_research, run_repository_research, write_research_artifact
 
 PHASES = [
@@ -33,6 +34,11 @@ PHASES = [
 PhaseCompleteCallback = Callable[[dict], None]
 
 
+def _check_cancelled(run_control: Optional[RunControl]) -> None:
+    if run_control and run_control.is_cancelled():
+        raise RunCancelled("Analysis stopped by the user.")
+
+
 def _repository_size_limit_error() -> ValueError:
     return ValueError(
         f"This app does not support repositories larger than {settings.max_repository_size_mb} MB. "
@@ -40,17 +46,30 @@ def _repository_size_limit_error() -> ValueError:
     )
 
 
-def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_intelligence: str, output_run_dir: Path, run_id: str, provider: str, model: str, api_key: str, diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None) -> dict:
+def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_intelligence: str, output_run_dir: Path, run_id: str, provider: str, model: str, api_key: str, diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None, run_control: Optional[RunControl] = None) -> dict:
+    _check_cancelled(run_control)
     if diagnostics:
         diagnostics.phase_start(phase_key, phase_name, batch_index=batch_index)
+    if run_control:
+        run_control.phase_started(phase_key)
     try:
         raw_result, actual_model = run_phase_agent(phase=phase_key, phase_name=phase_name, repository=repository, phase_intelligence=phase_intelligence, provider=provider, model=model, api_key=api_key)
+        _check_cancelled(run_control)
         if not raw_result.strip():
             raise RuntimeError(f"OpenAI Agents SDK returned an empty result for phase '{phase_key}'.")
         phase_output_dir = output_run_dir / phase_key
         phase_output_dir.mkdir(parents=True, exist_ok=True)
         (phase_output_dir / "agent-output.md").write_text(raw_result, encoding="utf-8")
-        rendered_result = render_analysis(phase=phase_key, analysis=raw_result, provider=provider, model=actual_model, api_key=api_key)
+        rendered_result = render_analysis(
+            phase=phase_key,
+            analysis=raw_result,
+            provider=provider,
+            model=actual_model,
+            api_key=api_key,
+            diagnostics=diagnostics,
+            run_control=run_control,
+        )
+        _check_cancelled(run_control)
         if not rendered_result.strip():
             raise RuntimeError(f"Renderer returned an empty result for phase '{phase_key}'.")
         document = f"---\nmodel: {actual_model}\n---\n\n{rendered_result}\n"
@@ -58,10 +77,22 @@ def _run_single_phase(phase_key: str, phase_name: str, repository: Path, phase_i
         raw_path.write_text(document, encoding="utf-8")
         provenance = {"model": actual_model}
         (phase_output_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+        if run_control:
+            run_control.phase_completed(phase_key)
         if diagnostics:
             diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="completed")
         return {"phase": phase_key, "phase_name": phase_name, "raw_analysis": rendered_result, "raw_path": str(raw_path), "run_id": run_id, "provenance": provenance}
+    except RunCancelled:
+        if diagnostics:
+            diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="cancelled")
+        raise
     except Exception:
+        if run_control and run_control.is_cancelled():
+            if diagnostics:
+                diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="cancelled")
+            raise RunCancelled("Analysis stopped by the user.")
+        if run_control:
+            run_control.phase_failed(_phase_failure(phase_key, phase_name, RuntimeError("Phase execution failed.")))
         if diagnostics:
             diagnostics.phase_end(phase_key, phase_name, batch_index=batch_index, status="failed")
         raise
@@ -71,23 +102,29 @@ def _phase_failure(phase_key: str, phase_name: str, exc: Exception) -> dict:
     return {"phase": phase_key, "phase_name": phase_name, "error_type": type(exc).__name__, "error": str(exc)}
 
 
-def _run_batch(batch: list[tuple[str, str]], repository: Path, phase_packages: dict[str, str], output_run_dir: Path, run_id: str, on_phase_complete: Optional[PhaseCompleteCallback] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: str = "", diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None) -> tuple[dict, list[dict]]:
+def _run_batch(batch: list[tuple[str, str]], repository: Path, phase_packages: dict[str, str], output_run_dir: Path, run_id: str, on_phase_complete: Optional[PhaseCompleteCallback] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: str = "", diagnostics: Optional[ResourceDiagnostics] = None, batch_index: Optional[int] = None, run_control: Optional[RunControl] = None) -> tuple[dict, list[dict]]:
     batch_results: dict[str, dict] = {}
     batch_failures: list[dict] = []
     phase_by_future = {}
     with ThreadPoolExecutor(max_workers=len(batch)) as executor:
         for key, name in batch:
-            future = executor.submit(_run_single_phase, key, name, repository, phase_packages[key], output_run_dir, run_id, provider, model, api_key, diagnostics, batch_index)
+            _check_cancelled(run_control)
+            future = executor.submit(_run_single_phase, key, name, repository, phase_packages[key], output_run_dir, run_id, provider, model, api_key, diagnostics, batch_index, run_control)
             phase_by_future[future] = (key, name)
         for future in as_completed(phase_by_future):
             key, name = phase_by_future[future]
             try:
                 result = future.result()
                 batch_results[result["phase"]] = result
-                if on_phase_complete:
+                if on_phase_complete and not (run_control and run_control.is_cancelled()):
                     on_phase_complete(result)
+            except RunCancelled:
+                raise
             except Exception as exc:
-                batch_failures.append(_phase_failure(key, name, exc))
+                failure = _phase_failure(key, name, exc)
+                batch_failures.append(failure)
+                if run_control:
+                    run_control.phase_failed(failure)
     return batch_results, batch_failures
 
 
@@ -103,7 +140,7 @@ def _phase_context(phase: str, deterministic: str, repository_research: str, pha
     ])
 
 
-def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_per_batch, number_of_batches: Optional[int] = None, batch_mode: str = settings.batch_mode, on_phase_complete: Optional[PhaseCompleteCallback] = None, selected_phases: Optional[list[str]] = None, work_id: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> dict:
+def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_per_batch, number_of_batches: Optional[int] = None, batch_mode: str = settings.batch_mode, on_phase_complete: Optional[PhaseCompleteCallback] = None, selected_phases: Optional[list[str]] = None, work_id: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None, run_control: Optional[RunControl] = None) -> dict:
     if not repo_url or not repo_url.strip():
         raise ValueError("repo_url cannot be empty")
     provider = (provider or "").strip().lower()
@@ -154,6 +191,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     results: dict[str, dict] = {}
     failures: list[dict] = []
     try:
+        _check_cancelled(run_control)
         max_bytes = settings.max_repository_size_mb * 1024 * 1024
         github_size_bytes = github_repository_size_bytes(repo_url)
         if github_size_bytes is not None:
@@ -165,6 +203,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
             workspace = Path(tmp)
             diagnostics.run_event("workspace_created", workspace=str(workspace))
             repository = clone_repository(repo_url, workspace)
+            _check_cancelled(run_control)
             size_bytes = repository_size_bytes(repository)
             if size_bytes > max_bytes:
                 raise _repository_size_limit_error()
@@ -172,9 +211,11 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
 
             intelligence: RepositoryIntelligence = collect_repository_intelligence(repository)
             diagnostics.run_event("repository_intelligence_collected", files_considered=intelligence.file_count)
+            _check_cancelled(run_control)
 
             diagnostics.run_event("repository_research_started")
             repository_research = run_repository_research(intelligence=intelligence, repository=repository, provider=provider, model=model, api_key=api_key)
+            _check_cancelled(run_control)
             write_research_artifact(output_run_dir / "repository-research.md", kind="repository", phase=None, content=repository_research)
             diagnostics.run_event("repository_research_completed", output_chars=len(repository_research), llm_requests=1)
 
@@ -189,12 +230,15 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
                     for key in selected_ids
                 }
                 for future in as_completed(futures):
+                    _check_cancelled(run_control)
                     key = futures[future]
                     phase_name = phase_by_id[key]
                     try:
                         phase_research[key] = future.result()
                         write_research_artifact(output_run_dir / key / "phase-research.md", kind="phase", phase=key, content=phase_research[key])
                         diagnostics.run_event("phase_research_completed", phase=key, output_chars=len(phase_research[key]), llm_requests=1)
+                    except RunCancelled:
+                        raise
                     except Exception as exc:
                         failure = _phase_failure(key, phase_name, exc)
                         phase_research_failures.append(failure)
@@ -202,10 +246,7 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
                         diagnostics.run_event("phase_research_failed", phase=key, error_type=type(exc).__name__, error=str(exc))
                         failure_path = output_run_dir / key / "phase-research-failure.md"
                         failure_path.parent.mkdir(parents=True, exist_ok=True)
-                        failure_path.write_text(
-                            f"# Phase Research Failed\n\nPhase: {phase_name}\n\nError type: {type(exc).__name__}\n\nError: {exc}\n",
-                            encoding="utf-8",
-                        )
+                        failure_path.write_text(f"# Phase Research Failed\n\nPhase: {phase_name}\n\nError type: {type(exc).__name__}\n\nError: {exc}\n", encoding="utf-8")
 
             runnable_ids = [key for key in selected_ids if key in phase_research]
             runnable_batches = []
@@ -214,38 +255,33 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
                 if runnable_batch:
                     runnable_batches.append(runnable_batch)
 
-            phase_packages = {
-                key: _phase_context(key, deterministic_phase_packages[key], repository_research, phase_research[key])
-                for key in runnable_ids
-            }
-            diagnostics.run_event(
-                "semantic_context_ready",
-                repository_research_chars=len(repository_research),
-                phase_research_chars={key: len(value) for key, value in phase_research.items()},
-                phase_research_failed=[failure["phase"] for failure in phase_research_failures],
-                expected_upfront_llm_requests=1 + len(selected_ids),
-            )
+            phase_packages = {key: _phase_context(key, deterministic_phase_packages[key], repository_research, phase_research[key]) for key in runnable_ids}
+            diagnostics.run_event("semantic_context_ready", repository_research_chars=len(repository_research), phase_research_chars={key: len(value) for key, value in phase_research.items()}, phase_research_failed=[failure["phase"] for failure in phase_research_failures], expected_upfront_llm_requests=1 + len(selected_ids))
 
             if batch_mode == "parallel":
                 if runnable_batches:
+                    _check_cancelled(run_control)
                     with ThreadPoolExecutor(max_workers=len(runnable_batches)) as executor:
-                        futures = {
-                            executor.submit(_run_batch, batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index): index
-                            for index, batch in enumerate(runnable_batches, start=1)
-                        }
+                        futures = {executor.submit(_run_batch, batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index, run_control): index for index, batch in enumerate(runnable_batches, start=1)}
                         for future in as_completed(futures):
+                            _check_cancelled(run_control)
                             batch_results, batch_failures = future.result()
                             results.update(batch_results)
                             failures.extend(batch_failures)
             else:
                 for index, batch in enumerate(runnable_batches, start=1):
-                    batch_results, batch_failures = _run_batch(batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index)
+                    _check_cancelled(run_control)
+                    batch_results, batch_failures = _run_batch(batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index, run_control)
                     results.update(batch_results)
                     failures.extend(batch_failures)
 
+        _check_cancelled(run_control)
         create_download_package(output_run_dir)
         diagnostics.run_event("analysis_completed", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures])
         return {"run_id": run_id, "results": results, "failures": failures}
+    except RunCancelled:
+        diagnostics.run_event("analysis_cancelled", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures])
+        raise
     except Exception as exc:
         diagnostics.run_event("analysis_failed", error_type=type(exc).__name__, error=str(exc))
         raise
