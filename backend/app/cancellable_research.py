@@ -35,6 +35,33 @@ def _research_worker(kind: str, kwargs: dict[str, Any], result_queue: Any) -> No
         result_queue.put({"ok": False, "error_type": type(exc).__name__, "error": str(exc), "traceback": traceback.format_exc()})
 
 
+def _reasoning_only_fallback(kind: str, kwargs: dict[str, Any], error: str) -> str | None:
+    """Keep semantic research advisory when a model returns reasoning without an answer."""
+    normalized = error.lower()
+    if "reasoning" not in normalized or "answer" not in normalized:
+        return None
+
+    if kind == "repository":
+        intelligence = kwargs.get("intelligence")
+        return (
+            "SEMANTIC RESEARCH FALLBACK: The model returned reasoning without a usable research answer. "
+            "Use the deterministic repository intelligence below as the research brief and verify material claims against source code.\n\n"
+            f"{intelligence}"
+        )
+
+    phase = kwargs.get("phase", "selected phase")
+    phase_intelligence = str(kwargs.get("phase_intelligence") or "")
+    repository_research = str(kwargs.get("repository_research") or "")
+    return (
+        f"SEMANTIC RESEARCH FALLBACK FOR {phase}: The model returned reasoning without a usable research answer. "
+        "Use the supplied deterministic evidence and repository research as navigation aids, and verify material claims against source code.\n\n"
+        "REPOSITORY RESEARCH BRIEF:\n"
+        f"{repository_research}\n\n"
+        "DETERMINISTIC PHASE INTELLIGENCE:\n"
+        f"{phase_intelligence}"
+    )
+
+
 def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl | None) -> str:
     if run_control and run_control.is_cancelled():
         raise RunCancelled("Analysis stopped by the user.")
@@ -45,9 +72,6 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
     process.start()
     payload: dict[str, Any] | None = None
     try:
-        # Drain the queue while the worker is alive. Waiting for process.join() before
-        # reading the Queue can deadlock when the worker has produced a result but its
-        # multiprocessing feeder thread is still flushing that result to the parent.
         while process.is_alive():
             if run_control and run_control.is_cancelled():
                 process.terminate()
@@ -72,7 +96,13 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
 
         if payload.get("ok"):
             return str(payload.get("result") or "")
-        raise RuntimeError(f"{payload.get('error_type', 'SemanticResearchError')}: {payload.get('error', 'semantic research failed')}")
+
+        error_type = payload.get("error_type", "SemanticResearchError")
+        error = str(payload.get("error", "semantic research failed"))
+        fallback = _reasoning_only_fallback(kind, kwargs, error)
+        if fallback is not None:
+            return fallback
+        raise RuntimeError(f"{error_type}: {error}")
     finally:
         if process.is_alive():
             process.terminate()
