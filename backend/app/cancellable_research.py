@@ -67,7 +67,13 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
     context = mp.get_context("spawn")
     result_queue = context.Queue()
     process = context.Process(target=_research_worker, args=(kind, kwargs, result_queue), daemon=True)
-    process.start()
+    try:
+        process.start()
+    except Exception as exc:
+        if run_control and run_control.is_cancelled():
+            raise RunCancelled("Analysis stopped by the user.") from exc
+        return _research_fallback(kind, kwargs, type(exc).__name__, str(exc))
+
     payload: dict[str, Any] | None = None
     try:
         while process.is_alive():
@@ -89,8 +95,13 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
                 raise RunCancelled("Analysis stopped by the user.")
             try:
                 payload = result_queue.get(timeout=5)
-            except Empty as exc:
-                raise RuntimeError(f"Semantic research worker exited without a result (kind={kind}, exit_code={process.exitcode}).") from exc
+            except Empty:
+                return _research_fallback(
+                    kind,
+                    kwargs,
+                    "SemanticResearchWorkerExit",
+                    f"worker exited without a result (exit_code={process.exitcode})",
+                )
 
         if payload.get("ok"):
             return str(payload.get("result") or "")
