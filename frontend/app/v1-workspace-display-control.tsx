@@ -36,7 +36,10 @@ export default function V1WorkspaceDisplayControl() {
 
       if (cancelled) return;
       const progress = `${completed} of ${TOTAL_PHASES} phases have completed. You can read completed phases while the remaining phases continue running.`;
-      document.querySelector<HTMLElement>(".progress-screen > div > p")?.replaceChildren(progress);
+      const progressScreen = Array.from(document.querySelectorAll<HTMLElement>(".progress-screen")).find(
+        (screen) => screen.querySelector(".eyebrow")?.textContent?.trim() === "ANALYSIS IN PROGRESS",
+      );
+      progressScreen?.querySelector("p")?.replaceChildren(progress);
 
       const sidebarProgress = document.querySelector<HTMLElement>(".progress-label");
       if (sidebarProgress) {
