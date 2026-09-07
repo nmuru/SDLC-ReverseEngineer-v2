@@ -18,6 +18,7 @@ from agents.models.openai_chatcompletions import OpenAIChatCompletionsModel
 from openai import AsyncOpenAI
 
 from .config import settings
+from .run_control import RunCancelled, RunControl
 
 logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -86,7 +87,6 @@ def repository_size_bytes(repository: Path) -> int:
 
 
 def _read_agent_definition(phase: str) -> str:
-    """Load the phase-specific agent contract when present."""
     if not AGENTS_SOURCE.exists():
         return ""
     candidate = AGENTS_SOURCE / f"{phase}.md"
@@ -96,7 +96,6 @@ def _read_agent_definition(phase: str) -> str:
 
 
 def _read_skill(phase: str) -> str:
-    """Load the complete phase skill eagerly, as in the current implementation."""
     if not SKILLS_SOURCE.exists():
         return ""
     candidates = [SKILLS_SOURCE / phase / "SKILL.md", SKILLS_SOURCE / phase / "SKILL.md"]
@@ -195,7 +194,12 @@ class AgentDiagnosticsHooks(RunHooks):
         logger.warning("AGENT_DIAG agent_end trace_id=%s phase=%s turns=%d tool_calls=%d output_preview=%s", self.trace_id, self.phase, self.llm_turn, self.tool_calls, _preview(output, 1000))
 
 
-async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_intelligence: str, model: str, api_key: str, provider: str, previous_output: Optional[str]) -> str:
+async def _wait_for_cancellation(run_control: RunControl) -> None:
+    while not run_control.is_cancelled():
+        await asyncio.sleep(0.2)
+
+
+async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_intelligence: str, model: str, api_key: str, provider: str, previous_output: Optional[str], run_control: Optional[RunControl] = None) -> tuple[str, str]:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
         base_url = "https://openrouter.ai/api/v1"
@@ -221,37 +225,65 @@ INVESTIGATION BUDGET
 You have a finite investigation budget defined by the runner. Prioritize high-value evidence gathering early. As the remaining budget becomes small, stop broad exploration and transition to verification and synthesis. On the final available turn, produce the best-supported artifact possible rather than continuing investigation. Never invent missing evidence; mark it unknown or unverified."""
 
     instructions = "\n\n".join(part for part in [common_instructions, agent_definition, f"Phase methodology:\n{skill}" if skill else "", phase_intelligence, handoff] if part)
-
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
-    agent = Agent(
-        name=f"SDLC {phase_name}",
-        instructions=instructions,
-        model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
-        tools=_build_tools(repository),
-    )
+    agent = Agent(name=f"SDLC {phase_name}", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_tools(repository))
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
     logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_chars=%d max_turns=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), len(skill), settings.phase_agent_max_turns)
     try:
-        result = await Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks, max_turns=settings.phase_agent_max_turns)
+        if run_control and run_control.is_cancelled():
+            raise RunCancelled("Analysis stopped by the user.")
+        agent_task = asyncio.create_task(Runner.run(agent, "Analyze the repository and produce the requested phase documentation.", hooks=hooks, max_turns=settings.phase_agent_max_turns))
+        if run_control is None:
+            result = await agent_task
+        else:
+            cancel_task = asyncio.create_task(_wait_for_cancellation(run_control))
+            done, pending = await asyncio.wait({agent_task, cancel_task}, return_when=asyncio.FIRST_COMPLETED)
+            if cancel_task in done and run_control.is_cancelled():
+                agent_task.cancel()
+                try:
+                    await agent_task
+                except asyncio.CancelledError:
+                    pass
+                raise RunCancelled("Analysis stopped by the user.")
+            cancel_task.cancel()
+            try:
+                await cancel_task
+            except asyncio.CancelledError:
+                pass
+            result = await agent_task
+    except RunCancelled:
+        logger.warning("AGENT_DIAG cancelled trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d", trace_id, phase, time.perf_counter() - started, hooks.llm_turn, hooks.tool_calls)
+        raise
     except Exception as exc:
         logger.warning("AGENT_DIAG failed trace_id=%s phase=%s elapsed_s=%.3f turns_observed=%d tool_calls_observed=%d error_type=%s error=%s", trace_id, phase, time.perf_counter() - started, hooks.llm_turn, hooks.tool_calls, type(exc).__name__, str(exc))
         raise
     output = str(result.final_output or "").strip()
     if not output:
         raise AgentRunnerError(f"OpenAI Agents SDK completed phase '{phase}' but returned no final output.")
-    return output
+
+    actual_model = model.strip()
+    raw_responses = getattr(result, "raw_responses", None) or []
+    for raw_response in reversed(raw_responses):
+        response = getattr(raw_response, "response", raw_response)
+        response_model = getattr(response, "model", None)
+        if response_model:
+            actual_model = str(response_model)
+            break
+    return output, actual_model
 
 
-def run_phase_agent(phase: str, phase_name: str, repository: Path, phase_intelligence: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None) -> str:
-    """Run one phase against a shared read-only repository workspace."""
+def run_phase_agent(phase: str, phase_name: str, repository: Path, phase_intelligence: str, previous_output: Optional[str] = None, provider: str = "openrouter", model: str = "openrouter/free", api_key: Optional[str] = None, run_control: Optional[RunControl] = None) -> tuple[str, str]:
+    """Run one phase against a shared read-only repository workspace and return output plus actual model used."""
     if not api_key or not api_key.strip():
         raise AgentRunnerError(f"An API key is required for provider '{provider}'.")
     if not repository.is_dir():
         raise AgentRunnerError(f"Repository path does not exist: {repository}")
     try:
-        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, phase_intelligence=phase_intelligence, model=model, api_key=api_key, provider=provider, previous_output=previous_output))
+        return asyncio.run(_run_agent(phase=phase, phase_name=phase_name, repository=repository, phase_intelligence=phase_intelligence, model=model, api_key=api_key, provider=provider, previous_output=previous_output, run_control=run_control))
+    except RunCancelled:
+        raise
     except AgentRunnerError:
         raise
     except Exception as exc:

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Using Reverse SDLC</title>
+  <style>
+    :root { --bg:#f6f7f9; --card:#fff; --text:#1f2937; --muted:#667085; --border:#e4e7ec; --soft:#f9fafb; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; line-height:1.65; }
+    main { width:min(920px,calc(100% - 32px)); margin:48px auto; }
+    article { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:42px 48px; box-shadow:0 8px 30px rgba(16,24,40,.05); }
+    h1 { margin:0 0 10px; font-size:36px; line-height:1.2; letter-spacing:-.02em; }
+    h2 { margin:38px 0 10px; font-size:23px; line-height:1.3; }
+    h3 { margin:24px 0 8px; font-size:18px; }
+    p { margin:10px 0 16px; }
+    ul,ol { padding-left:24px; }
+    li { margin:7px 0; }
+    .eyebrow { color:var(--muted); font-size:12px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; margin-bottom:10px; }
+    .intro { color:var(--muted); font-size:17px; margin-bottom:28px; }
+    .callout { background:var(--soft); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin:22px 0; }
+    .callout strong { display:block; margin-bottom:4px; }
+    a { color:#175cd3; }
+    footer { color:var(--muted); font-size:13px; margin-top:18px; text-align:center; }
+    @media (max-width:700px) { main { margin:20px auto; } article { padding:28px 22px; } h1 { font-size:30px; } }
+  </style>
+</head>
+<body>
+<main><article>
+  <div class="eyebrow">ReverseEngineer-SDLC</div>
+  <h1>Using Reverse SDLC</h1>
+  <p class="intro">A practical guide to getting useful, reliable documentation from an existing software repository.</p>
+
+  <h2>1. What should I expect from this application?</h2>
+  <p>Reverse SDLC helps you understand an existing software repository and turn what is already implemented into structured engineering documentation.</p>
+  <p>Depending on the phases you select, the output can help you understand:</p>
+  <ul><li>Business purpose and product intent</li><li>Requirements and functional behavior</li><li>Architecture and technical design</li><li>Implementation details</li><li>Testing and validation</li><li>Future directions, gaps, and technical debt</li></ul>
+  <p>The quality of the result depends on both the repository and the AI model being used. This application is intended to accelerate understanding and documentation, not replace engineering judgment.</p>
+
+  <h2>2. Run a small group of phases at a time</h2>
+  <div class="callout"><strong>Recommended: run about 3–4 phases at a time.</strong> Provider rate limits can prevent a larger request from completing. Free models may have tighter limits; as a practical example, a free model may not reliably accept more than 3 phases in one request.</div>
+  <p>If you need all phases, split them into several runs. This also makes it easier to identify and rerun a phase if one result needs improvement.</p>
+
+  <h2>3. You do not need an expensive model to start</h2>
+  <p>This application does not require a frontier model. You can use OpenRouter and free models to establish a useful baseline. OpenRouter can route requests to free models made available by different providers, including models such as Nemotron, LFM, Cohere, and others.</p>
+  <p>Some repositories may benefit from a larger or stronger model, including medium-sized models around the 32B class or comparable models.</p>
+  <p>A practical approach is:</p>
+  <ol><li>Start with an available free model.</li><li>Review the generated documentation.</li><li>Identify phases that are incomplete, ambiguous, or inaccurate.</li><li>Rerun those phases using a stronger model if necessary.</li></ol>
+
+  <h2>4. AI can make mistakes</h2>
+  <p>AI-generated documentation can contain mistakes, omissions, incorrect assumptions, or hallucinations. Reverse SDLC has not attempted to make the output perfect or eliminate every possible hallucination.</p>
+  <p>If you find an incorrect or hallucinated result, rerun that phase. You can also try the same phase with a better or paid model if the repository is complex or the result requires greater accuracy.</p>
+
+  <h2>5. Review the output before using it as engineering documentation</h2>
+  <p>If you are using Reverse SDLC to document an existing GitHub repository, review the generated documents before treating them as project documentation.</p>
+  <p>In particular, check business behavior, architecture descriptions, technology and dependency claims, assumptions about user workflows, security-related observations, testing claims, and future-development recommendations.</p>
+  <p>The source code remains the primary source of truth. The generated documentation is an interpretation of that source.</p>
+
+  <h2>6. Documenting an existing repository</h2>
+  <h3>Step 1 — Run a baseline analysis</h3><p>Start with the model that is readily available to you. You do not need to optimize for the strongest possible model immediately.</p>
+  <h3>Step 2 — Review the generated phases</h3><p>Look for statements that are clearly supported by the code, useful but requiring verification, too speculative, missing important information, or incorrect.</p>
+  <h3>Step 3 — Rerun weak phases</h3><p>Rerun phases that need improvement. You can use a stronger model for that phase rather than rerunning the entire analysis with a more expensive model.</p>
+  <h3>Step 4 — Refine before publishing</h3><p>If the generated documents are going to become permanent project documentation, review and refine them before publishing them to your repository or documentation system.</p>
+
+  <h2>7. Using Reverse SDLC for spec-driven development</h2>
+  <p>Reverse SDLC can also be useful when an existing repository is being used as the starting point for specification-driven development.</p>
+  <ol><li>Generate the documentation from the existing implementation.</li><li>Review the generated documents.</li><li>Ask your coding or specification agent to refine each document.</li><li>Resolve contradictions and ambiguities.</li><li>Confirm that the refined specification represents the intended future behavior.</li><li>Use the refined specification as an input to subsequent development work.</li></ol>
+  <p>This is particularly important when the existing implementation contains legacy behavior, incomplete features, workarounds, or technical debt.</p>
+
+  <h2>8. Do not confuse current behavior with desired behavior</h2>
+  <p>There is an important distinction between <strong>what the software currently does</strong> and <strong>what the software should do in the future</strong>.</p>
+  <p>Reverse SDLC starts from the existing implementation. Generated requirements or architectural descriptions may therefore describe behavior that exists today even if that behavior is not ideal.</p>
+
+  <h2>9. Choosing a model</h2>
+  <p>Consider starting with a free model when you are exploring the application, want a quick baseline, the repository is relatively straightforward, cost is important, or you want to compare model quality.</p>
+  <p>Consider a stronger model when the repository is large or complex, the architecture is difficult to infer, generated output contains significant ambiguity, a particular phase requires deeper reasoning, or the documentation will be used for important downstream engineering work.</p>
+
+  <h2>10. When a result does not look right</h2>
+  <p>Do not immediately assume that the entire analysis has failed. First determine whether the problem is isolated to a particular phase. If it is, rerun that phase. If the result is still poor, try a stronger model and compare the output.</p>
+  <p>If the repository itself contains ambiguous, inconsistent, or undocumented behavior, the AI may reasonably struggle to determine the intended meaning. Human review is especially important in those cases.</p>
+
+  <h2>11. Keep the source repository available for verification</h2>
+  <p>Generated documentation is much more useful when engineers can verify important statements against the source repository.</p>
+  <div class="callout"><strong>A useful review question:</strong> “Where in the repository does this claim come from?” If the answer is unclear, treat the statement as something that needs verification rather than established fact.</div>
+
+  <h2>12. A practical recommended workflow</h2>
+  <div class="callout"><strong>Analyze → Review → Identify weak areas → Rerun → Refine → Publish/use</strong><br>Start inexpensively. Review the results. Spend additional model capacity only where it improves the result. Have a human or coding agent refine the documents before they become a formal specification or permanent project documentation.</div>
+
+  <h2>13. Important limitations</h2>
+  <p>Reverse SDLC cannot guarantee that every generated statement is correct. AI may misinterpret implementation details, infer behavior that is not explicitly present, miss relevant code, oversimplify complex architecture, describe legacy behavior as intentional design, or produce recommendations that require engineering judgment.</p>
+  <p>For these reasons, generated documentation should be reviewed before being used to make important technical or product decisions.</p>
+
+  <h2>14. The most useful way to think about Reverse SDLC</h2>
+  <p>Reverse SDLC is best viewed as a documentation and understanding accelerator. It can significantly reduce the effort required to understand an unfamiliar codebase, but it does not remove the need for engineering judgment.</p>
+  <p>Use the AI output to get from <strong>“I need to understand this repository.”</strong> to <strong>“I have a structured starting point that I can review, verify, and refine.”</strong></p>
+</article><footer>ReverseEngineer-SDLC — In-app usage guide</footer></main>
+</body>
+</html>

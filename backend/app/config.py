@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     phases_per_batch: int = 1
     batch_mode: str = "parallel"
     analysis_results_dir: str = "output-content"
+    runtime_mode: str = "evaluation"
     resource_diagnostics_enabled: bool = True
     resource_diagnostics_interval_seconds: float = 2.0
     resource_diagnostics_dir: str = "resource-diagnostics"
