@@ -18,7 +18,25 @@ export default function BackendCapacityControl() {
         const response = await fetch(`${API_BASE_URL}/health`, { cache: "no-store" });
         if (!response.ok) throw new Error("Backend unavailable");
         consecutiveFailures = 0;
-        if (!cancelled) setUnavailable(false);
+
+        let memoryFailure = false;
+        try {
+          const raw = window.sessionStorage.getItem(STORAGE_KEY);
+          if (raw) {
+            const stored = JSON.parse(raw) as { runId?: string };
+            if (stored.runId && stored.runId !== "vercel-demo") {
+              const statusResponse = await fetch(`${API_BASE_URL}/api/analysis/${stored.runId}/status`, { cache: "no-store" });
+              if (statusResponse.ok) {
+                const status = await statusResponse.json() as { error?: string };
+                memoryFailure = status.error === MESSAGE;
+              }
+            }
+          }
+        } catch {
+          memoryFailure = false;
+        }
+
+        if (!cancelled) setUnavailable(memoryFailure);
       } catch {
         consecutiveFailures += 1;
         let activeAnalysis = false;
