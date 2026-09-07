@@ -43,7 +43,11 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
     result_queue = context.Queue()
     process = context.Process(target=_research_worker, args=(kind, kwargs, result_queue), daemon=True)
     process.start()
+    payload: dict[str, Any] | None = None
     try:
+        # Drain the queue while the worker is alive. Waiting for process.join() before
+        # reading the Queue can deadlock when the worker has produced a result but its
+        # multiprocessing feeder thread is still flushing that result to the parent.
         while process.is_alive():
             if run_control and run_control.is_cancelled():
                 process.terminate()
@@ -52,15 +56,20 @@ def _run_cancellable(kind: str, kwargs: dict[str, Any], run_control: RunControl 
                     process.kill()
                     process.join(timeout=2)
                 raise RunCancelled("Analysis stopped by the user.")
-            process.join(timeout=0.1)
+            try:
+                payload = result_queue.get_nowait()
+                break
+            except Empty:
+                process.join(timeout=0.1)
 
-        if run_control and run_control.is_cancelled():
-            raise RunCancelled("Analysis stopped by the user.")
+        if payload is None:
+            if run_control and run_control.is_cancelled():
+                raise RunCancelled("Analysis stopped by the user.")
+            try:
+                payload = result_queue.get(timeout=5)
+            except Empty as exc:
+                raise RuntimeError(f"Semantic research worker exited without a result (kind={kind}, exit_code={process.exitcode}).") from exc
 
-        try:
-            payload = result_queue.get(timeout=5)
-        except Empty as exc:
-            raise RuntimeError(f"Semantic research worker exited without a result (kind={kind}, exit_code={process.exitcode}).") from exc
         if payload.get("ok"):
             return str(payload.get("result") or "")
         raise RuntimeError(f"{payload.get('error_type', 'SemanticResearchError')}: {payload.get('error', 'semantic research failed')}")
