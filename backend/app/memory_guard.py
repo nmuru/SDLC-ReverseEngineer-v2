@@ -99,21 +99,19 @@ class MemoryCapacityGuard:
         while not self._stop.wait(self.interval_seconds):
             if self.control.snapshot().get("status") not in {"running", "cancelling"}:
                 return
-            available, used, limit = memory_snapshot()
-            reserve = _safe_reserve_bytes(limit, 128)
-            percent = (used / limit * 100.0) if limit else 0.0
-            if available >= reserve and percent < 92.0:
+            if not memory_pressure():
                 continue
+            available, used, limit = memory_snapshot()
+            percent = (used / limit * 100.0) if limit else 0.0
             self.triggered.set()
             logger.warning(
                 "Memory capacity guard triggered; cancelling analysis work_id=%s: "
-                "available=%.0f MB, used=%.0f MB, limit=%s MB, used_percent=%s, reserve=%.0f MB",
+                "available=%.0f MB, used=%.0f MB, limit=%s MB, used_percent=%s",
                 self.control.run_id,
                 available / 1024 / 1024,
                 used / 1024 / 1024,
                 f"{limit / 1024 / 1024:.0f}" if limit else "unlimited",
                 f"{percent:.1f}" if limit else "n/a",
-                reserve / 1024 / 1024,
             )
             self.control.cancel()
             return
