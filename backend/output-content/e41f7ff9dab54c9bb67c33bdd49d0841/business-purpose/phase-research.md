@@ -1,0 +1,19 @@
+# Phase Research Brief
+
+Research schema: 3
+Phase: business-purpose
+
+> This is an upstream reasoning artifact. It is not authoritative evidence or final SDLC documentation. Material claims must be verified against repository source.
+**Business-Purpose Summary**
+
+Next.js Commerce is a Vercel-maintained reference storefront template for e-commerce applications, explicitly positioned as a server-first, high-performance Next.js App Router implementation. The README states it is "A high-performance, server-rendered Next.js App Router ecommerce application" that uses React Server Components, Server Actions, Suspense, and useOptimistic. The primary domain is online retail, serving shoppers who browse products and collections and manage a shopping cart, with the system boundary spanning the Next.js frontend, Shopify's GraphQL API, and Vercel deployment infrastructure.
+
+The product's value is delivered as a forkable template rather than a standalone SaaS product. Vercel actively maintains only the Shopify version, while alternative providers (BigCommerce, Ecwid, Geins) are expected to fork the repository and swap the `lib/shopify` implementation, leaving the rest of the template unchanged. This makes the repository a reference architecture for commerce providers to adapt to their own backends. The deployment model is tightly coupled to Vercel, as indicated by the deploy button and `VERCEL_PROJECT_PRODUCTION_URL` environment variable.
+
+Major capabilities include product browsing with variant selection, collection pages with filtering and sorting, search with collection autocomplete, a slide-out cart modal with quantity editing and deletion, server-rendered homepage with carousel and product grids, SEO metadata generation, and OpenGraph image generation for social sharing. The cart supports optimistic updates and revalidation via a webhook-triggered API route (`app/api/revalidate/route.ts`). The application serves both static marketing pages and dynamic product/collection pages through Next.js App Router conventions.
+
+The architecture follows a server-first pattern where `lib/shopify/index.ts` acts as the central data-fetching facade, exposing functions like `getProduct`, `getCollection`, `getCart`, `createCart`, `addToCart`, and `revalidate`. GraphQL operations are organized into fragments (`fragments/`), queries (`queries/`), and mutations (`mutations/`). Client-side cart state uses a reducer pattern in `components/cart/cart-context.tsx`, while cart mutations use Server Actions via `components/cart/actions.ts`. The data layer is strongly typed through `lib/shopify/types.ts`, which defines interfaces for Cart, Product, Variant, and Shopify-specific operation results.
+
+External integrations are centered on Shopify's GraphQL storefront API, configured via `SHOPIFY_STORE_DOMAIN`, `SHOPIFY_STOREFRONT_ACCESS_TOKEN`, and `SHOPIFY_REVALIDATION_SECRET` environment variables. Vercel provides deployment and preview URLs. The template uses pnpm, Prettier with Tailwind plugin, Tailwind CSS 4 with container queries and typography plugins, and TypeScript strict mode.
+
+Important uncertainties: The `test` script runs Prettier checks rather than unit tests, suggesting limited automated testing coverage in this template. Tree-sitter parsing shows 0 parsed files out of 66 attempted, indicating parser availability issues that may affect code analysis accuracy. The README excerpt is truncated, so full provider documentation and setup instructions are not fully captured. The presence of alternative providers (BigCommerce, Ecwid, Geins) as forked repositories rather than active branches means their feature parity and maintenance status are unknown from this summary alone. The OpenGraph image generation and sitemap generation are present but their exact content model and dynamic data sources are not fully detailed in the supplied evidence.

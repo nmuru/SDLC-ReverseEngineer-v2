@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>business-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<p>---</p>
+<p>model: openrouter/free</p>
+<p>---</p>
+<h1>Business Requirements</h1>
+<h2>Overview</h2>
+<p>This analysis reconstructs the business requirements for Next.js Commerce, a high‑performance, server‑rendered e‑commerce storefront template that serves as a headless frontend for commerce providers. Based on repository evidence, this system is designed to provide customers with a seamless shopping experience while delegating core commerce operations to external platforms like Shopify.</p>
+<h2>Business Requirements</h2>
+<h3>Product Discovery and Browsing</h3>
+<ul>
+<li><strong>End customers must be able to discover products through multiple entry points</strong> – evidence shows product discovery is available via the home page (featured products), collection browsing (<code>/search/[collection]</code>), and dedicated product detail pages (<code>/product/[handle]</code>).</li>
+<li><strong>Customers must be able to view complete product information including variants, options, images, pricing, and SEO metadata</strong> – implemented through product detail pages that display variant selectors, image galleries, and related product recommendations based on Shopify product data.</li>
+<li><strong>Shopping must support filtering and sorting capabilities within collections</strong> – evidence shows filtering via URL‑based parameters and sorting options defined in <code>lib/constants.ts</code> including relevance, best‑selling, latest arrivals, price low‑to‑high, and price high‑to‑low.</li>
+<li><strong>Search functionality must return relevant products and display results counts</strong> – implemented through <code>/app/search/page.tsx</code> with search value handling, results counting, and display of matching products.</li>
+</ul>
+<h3>Cart Management</h3>
+<ul>
+<li><strong>Customers must be able to create and maintain persistent shopping carts</strong> – evidence shows cart creation (<code>createCart</code>), persistence through cookies (<code>cartId</code>), and client‑side state management via React context.</li>
+<li><strong>Shopping carts must support adding products, adjusting quantities, removing items, and viewing cart contents</strong> – implemented through comprehensive cart operations including add (<code>addToCart</code>/<code>addItem</code>), update (<code>updateCart</code>/<code>updateItemQuantity</code>), remove (<code>removeFromCart</code>/<code>removeItem</code>), and real‑time cart modal display.</li>
+<li><strong>Cart state must be immediately visible and responsive during shopping sessions</strong> – evidence shows optimistic UI patterns in <code>components/cart/cart-context.tsx</code> with client‑side reducer and real‑time updates without page reloads.</li>
+<li><strong>Customers must be able to proceed to checkout from their carts</strong> – implemented through <code>redirectToCheckout</code> function that redirects users to the external checkout URL provided by the commerce platform.</li>
+<li><strong>Cart data must persist across browsing sessions</strong> – evidence shows cart identification and persistence through cookie‑based <code>cartId</code> management and server‑side cart retrieval.</li>
+</ul>
+<h3>Content and Navigation</h3>
+<ul>
+<li><strong>The application must provide dynamic content pages managed externally</strong> – evidence shows <code>app/[page]/page.tsx</code> renders static content pages pulled from Shopify, with dynamic OpenGraph image generation for social sharing.</li>
+<li><strong>Navigation must be dynamically generated and maintained</strong> – evidence shows menu system (<code>getMenu</code> function) and footer navigation populated from external data sources.</li>
+<li><strong>Sitemap must be automatically generated for search engine optimization</strong> – evidence shows <code>app/sitemap.ts</code> aggregates Shopify pages and collections for crawler discovery.</li>
+</ul>
+<h3>Technical Operations</h3>
+<ul>
+<li><strong>The application must validate external integration credentials at build time</strong> – evidence shows <code>lib/utils.ts</code> environment validation requiring <code>SHOPIFY_STORE_DOMAIN</code>, <code>SHOPIFY_STOREFRONT_ACCESS_TOKEN</code>, and <code>SITE_NAME</code>.</li>
+<li><strong>Webhook‑based revalidation must be supported for content updates</strong> – evidence shows <code>app/api/revalidate/route.ts</code> implements Shopify webhook handling for collection and product updates with secret‑based authentication.</li>
+<li><strong>Cache invalidation must occur when cart or catalog data changes</strong> – evidence shows cache tag management (<code>TAGS.cart</code>, <code>TAGS.collections</code>, <code>TAGS.products</code>) in Shopify integration layer and revalidation triggers.</li>
+</ul>
+<h3>System Boundaries and Dependencies</h3>
+<ul>
+<li><strong>The system must integrate with external commerce platforms</strong> – evidence shows single integration point (<code>lib/shopify/index.ts</code>) that abstracts Shopify Storefront API operations, with architecture designed to support alternative providers by swapping the integration layer.</li>
+<li><strong>The application must support only guest checkout without user accounts</strong> – evidence shows absence of authentication, login, or user management functionality throughout the codebase.</li>
+<li><strong>Product data must be sourced entirely from external platforms</strong> – evidence shows all product catalog operations (<code>getProduct</code>, <code>getProducts</code>, <code>getCollectionProducts</code>) delegate to Shopify Storefront API, with no local product management.</li>
+</ul>
+<h3>User Experience</h3>
+<ul>
+<li><strong>The shopping interface must provide responsive design optimized for various devices</strong> – evidence shows Tailwind CSS usage and responsive grid layouts in product display components.</li>
+<li><strong>The application must support server‑side rendering for performance</strong> – evidence shows React Server Components and Suspense implementation as described in documentation.</li>
+<li><strong>The interface must provide immediate visual feedback during cart operations</strong> – evidence shows toast notifications (<code>WelcomeToast</code>) and optimistic UI patterns for cart interactions.</li>
+</ul>
+<h2>Business Outcomes</h2>
+<ul>
+<li><strong>Increased conversion rates through fast, reliable product discovery</strong> – achieved via server‑side rendering and efficient data fetching patterns.</li>
+<li><strong>Reduced cart abandonment through persistent shopping experience</strong> – maintained via client‑side cart state and immediate checkout access.</li>
+<li><strong>Improved SEO through dynamic sitemap generation and SEO metadata handling</strong> – supported by automatic sitemap creation and structured SEO implementations.</li>
+<li><strong>Streamlined content management through headless architecture</strong> – enabled by external content management system integration while maintaining frontend performance.</li>
+</ul>
+<h2>Scope and Boundaries</h2>
+<ul>
+<li><strong>Included</strong>: Product browsing, cart management, search and filtering, content pages, navigation, checkout process, SEO optimization.</li>
+<li><strong>Excluded</strong>: Payment processing (redirects to external checkout), user authentication/authorization, order management, inventory management, user account management, analytics/tracking.</li>
+</ul>
+<h2>Critical Unknowns and Assumptions</h2>
+<ul>
+<li><strong>Error recovery strategy for Shopify API failures</strong> – while type guards exist (<code>lib/type‑guards.ts</code>), the full error handling and recovery strategy is not fully evidenced in the repository.</li>
+<li><strong>Performance optimization details</strong> – caching strategies are present but specific performance targets and optimization requirements are not documented in the evidence.</li>
+<li><strong>Accessibility compliance</strong> – while UI components reference accessibility (Headless UI, Heroicons), specific WCAG compliance requirements are not evidenced.</li>
+</ul>
+<h2>Business Rules</h2>
+<ul>
+<li><strong>Hidden products must be filtered out</strong> – evidence shows <code>HIDDEN_PRODUCT_TAG</code> constant used in <code>reshapeProduct</code> to exclude products marked as hidden.</li>
+<li><strong>Cart items must maintain proper quantity validation</strong> – evidence shows cart item quantity management with zero‑quantity handling and deletion logic.</li>
+<li><strong>External integrations must be secured</strong> – evidence shows revalidation endpoint requires <code>SHOPIFY_REVALIDATION_SECRET</code> and webhook validation for collection/product updates.</li>
+</ul>
+</main>
+</body>
+</html>

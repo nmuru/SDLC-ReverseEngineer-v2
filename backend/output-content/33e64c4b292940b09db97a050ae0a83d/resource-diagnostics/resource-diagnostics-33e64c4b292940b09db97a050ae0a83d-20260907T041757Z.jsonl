@@ -1,0 +1,4 @@
+{"timestamp": "2026-09-07T04:17:57.545111+00:00", "run_id": "33e64c4b292940b09db97a050ae0a83d", "event": "monitor_started"}
+{"timestamp": "2026-09-07T04:17:57.545473+00:00", "run_id": "33e64c4b292940b09db97a050ae0a83d", "event": "analysis_started", "selected_phases": ["testing-harness", "low-level-design", "high-level-design"], "phases_per_batch": 1, "batch_mode": "parallel", "batch_count": 3, "provider": "openrouter", "model": "openrouter/free"}
+{"timestamp": "2026-09-07T04:17:57.558470+00:00", "run_id": "33e64c4b292940b09db97a050ae0a83d", "event": "analysis_failed", "error_type": "AgentRunnerError", "error": "Could not inspect the GitHub repository before cloning: <urlopen error [Errno 11001] getaddrinfo failed>"}
+{"timestamp": "2026-09-07T04:17:57.559071+00:00", "run_id": "33e64c4b292940b09db97a050ae0a83d", "event": "monitor_stopped"}

@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>business-requirements</title>
+
+<style>
+body {
+    margin: 0;
+    background: #f6f7f9;
+    color: #1f2937;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+main {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 40px 28px;
+    background: #fff;
+    min-height: 100vh;
+}
+
+h1, h2, h3, h4, h5, h6 {
+    line-height: 1.25;
+    margin-top: 1.5em;
+}
+
+p, li {
+    line-height: 1.6;
+}
+
+table {
+    border-collapse: collapse;
+    margin: 18px 0;
+    width: 100%;
+}
+
+td {
+    border: 1px solid #d1d5db;
+    padding: 8px;
+    text-align: left;
+    vertical-align: top;
+}
+
+pre {
+    background: #111827;
+    color: #f9fafb;
+    overflow: auto;
+    padding: 16px;
+    border-radius: 8px;
+}
+
+code {
+    background: #eef0f3;
+    padding: 2px 4px;
+    border-radius: 3px;
+}
+
+pre code {
+    background: transparent;
+    padding: 0;
+}
+
+a {
+    color: #2563eb;
+}
+
+.mermaid {
+    overflow-x: auto;
+    margin: 24px 0;
+    padding: 12px;
+}
+</style>
+
+<script type="module">
+import mermaid from
+    "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+
+mermaid.initialize({
+    startOnLoad: true,
+    securityLevel: "loose",
+    theme: "default",
+});
+</script>
+
+</head>
+
+<body>
+<main>
+<p>---</p>
+<p>model: openrouter/free</p>
+<p>---</p>
+<h1>Business Requirements Document</h1>
+<h2>Executive Summary</h2>
+<p>This repository implements a server-rendered ecommerce storefront template designed to enable merchants to launch high-performance online stores. The system focuses on product discovery, cart management, and checkout operations while delegating order processing, customer accounts, and inventory management to the Shopify commerce platform. The solution supports multi-provider extensibility through a modular architecture that isolates commerce provider logic.</p>
+<p>---</p>
+<h2>Stakeholder Requirements</h2>
+<h3>For Shoppers (End Users)</h3>
+<ul>
+<li>Customers must be able to discover and browse products through a homepage featuring curated product displays and organized collection pages with filtering and sorting capabilities.</li>
+<li>Customers must be able to access detailed product information including variants, pricing, availability, images, and related products.</li>
+<li>Customers must be able to search for products using keywords to quickly locate catalog items.</li>
+<li>Customers must be able to manage their shopping selections through a persistent cart that maintains items across browsing sessions.</li>
+<li>Customers must be able to view and navigate content pages such as informational or promotional pages that are part of the catalog.</li>
+<li>Customers must be able to initiate the purchase process by proceeding to checkout where payment processing occurs through the Shopify platform.</li>
+</ul>
+<h3>For Merchants (Store Operators)</h3>
+<ul>
+<li>Merchants must be able to surface their product catalog with control over product visibility through catalog tagging and hidden product management.</li>
+<li>Merchants must be able to organize products into collections for enhanced browsing experiences and marketing campaigns.</li>
+<li>Merchants must be able to configure navigation menus to guide shoppers through their storefront.</li>
+<li>Merchants must receive automatic cache invalidation when catalog changes occur through Shopify webhooks to ensure product information remains current.</li>
+<li>Merchants must be able to deploy their storefront using standard ecommerce best practices while maintaining separation between frontend and backend commerce logic.</li>
+</ul>
+<h3>For Platform/Deployment Operators</h3>
+<ul>
+<li>Platform operators must be able to deploy the storefront using modern web application deployment practices while maintaining security and performance standards.</li>
+<li>Platform operators must be able to configure environment variables that securely integrate with commerce providers without code changes.</li>
+</ul>
+<p>---</p>
+<h2>Core Business Capabilities</h2>
+<h3>Product Discovery and Browsing</h3>
+<ul>
+<li>The system must support browsing featured products on the homepage through curated product displays.</li>
+<li>The system must enable collection-based product browsing with organized categorization and filtering options.</li>
+<li>The system must provide product detail pages that display complete product information including all available variants.</li>
+<li>The system must offer search functionality allowing customers to find products by keywords or attributes.</li>
+<li>The system must maintain catalog freshness through automatic revalidation when product information changes.</li>
+</ul>
+<h3>Shopping Experience</h3>
+<ul>
+<li>The system must provide a persistent shopping cart that maintains customer selections across browsing sessions.</li>
+<li>The system must enable customers to add, remove, and modify cart items including quantities.</li>
+<li>The system must support product variant selection allowing customers to choose between different product options.</li>
+<li>The system must integrate with external checkout providers for secure payment processing and order completion.</li>
+</ul>
+<h3>Content Management</h3>
+<ul>
+<li>The system must support standalone content pages for informational, promotional, or policy content.</li>
+<li>The system must generate search engine optimized content including metadata, sitemaps, and social sharing capabilities.</li>
+</ul>
+<h3>Technical Operations</h3>
+<ul>
+<li>The system must automatically refresh cached content when commerce data changes through webhook notifications.</li>
+<li>The system must validate required configuration before startup to ensure proper integration with commerce providers.</li>
+</ul>
+<p>---</p>
+<h2>Business Rules and Constraints</h2>
+<h3>Catalog Management Rules</h3>
+<ul>
+<li>Products marked with the hidden tag must not appear in public catalog browsing or search results.</li>
+<li>Collection visibility must be controlled through proper tagging and collection management mechanisms.</li>
+<li>Product variants must maintain consistency with selected product options through URL-based state management.</li>
+</ul>
+<h3>Shopping Rules</h3>
+<ul>
+<li>Cart items must persist across browsing sessions using secure client-side storage mechanisms.</li>
+<li>Checkout initiation must be available from any point in the shopping journey when items are present.</li>
+<li>Product availability must be reflected in real-time through inventory integration with the commerce provider.</li>
+</ul>
+<h3>Security and Integration Rules</h3>
+<ul>
+<li>External integration credentials must be validated before system operation to ensure connectivity.</li>
+<li>Webhook-based updates must be authenticated to prevent unauthorized cache modifications.</li>
+<li>Provider abstraction must allow swapping commerce backends without affecting frontend functionality.</li>
+</ul>
+<p>---</p>
+<h2>Required Business Outcomes</h2>
+<h3>Customer Experience Outcomes</h3>
+<ul>
+<li>Customers must be able to complete purchases from start to finish through a seamless shopping experience.</li>
+<li>Customers must receive accurate product information including pricing, availability, and descriptions.</li>
+<li>Customers must have confidence in security through proper validation of checkout processes.</li>
+</ul>
+<h3>Operational Outcomes</h3>
+<ul>
+<li>Merchants must maintain control over their product catalogs through intuitive management interfaces.</li>
+<li>Merchants must achieve fast page performance through intelligent caching strategies.</li>
+<li>Merchants must receive timely updates when catalog changes occur through automated processes.</li>
+</ul>
+<h3>Technical Outcomes</h3>
+<ul>
+<li>The system must remain deployable across different hosting environments while maintaining functionality.</li>
+<li>The system must support scalability to handle varying levels of traffic and catalog size.</li>
+<li>The system must maintain separation between frontend presentation and backend commerce logic.</li>
+</ul>
+<p>---</p>
+<h2>Scope and Exclusions</h2>
+<h3>Within Scope</h3>
+<ul>
+<li>Product browsing, discovery, and detail viewing</li>
+<li>Shopping cart management and checkout initiation</li>
+<li>Content page presentation</li>
+<li>Basic navigation and filtering</li>
+<li>Cache invalidation for catalog updates</li>
+</ul>
+<h3>Explicitly Out of Scope</h3>
+<ul>
+<li>Customer account management</li>
+<li>Order processing and fulfillment</li>
+<li>Customer support interactions</li>
+<li>Advanced inventory management beyond availability display</li>
+<li>Complex business workflows beyond basic ecommerce</li>
+</ul>
+<p>---</p>
+<h2>Critical Unknowns and Assumptions</h2>
+<h3>Verified Capabilities</h3>
+<ul>
+<li>Product browsing through homepage, collections, and search</li>
+<li>Shopping cart lifecycle management</li>
+<li>Variant selection and configuration</li>
+<li>Webhook-based cache invalidation</li>
+<li>Environment variable validation requirements</li>
+</ul>
+<h3>Unverified or Uncertain Requirements</h3>
+<ul>
+<li>The exact provider abstraction capabilities for swapping commerce backends</li>
+<li>Advanced merchant-specific catalog management interfaces beyond tag-based visibility</li>
+<li>Performance optimization mechanisms beyond basic caching</li>
+<li>Advanced SEO features beyond basic metadata generation</li>
+</ul>
+<h3>Risk Areas</h3>
+<ul>
+<li>Provider abstraction effectiveness has only README-level evidence</li>
+<li>Cart persistence mechanisms rely on client-side storage without specified fallback behavior</li>
+<li>Webhook integration depends on external Shopify platform behavior</li>
+<li>Component architecture may introduce dependencies that limit provider swapping effectiveness</li>
+</ul>
+<p>---</p>
+<h2>Compliance and Standards</h2>
+<h3>Required Standards</h3>
+<ul>
+<li>The system must validate required environment variables before operation</li>
+<li>Webhook endpoints must authenticate requests to prevent unauthorized access</li>
+<li>Product information must be presented with accurate availability and pricing</li>
+<li>User interface must support accessibility standards for ecommerce applications</li>
+</ul>
+<h3>Security Requirements</h3>
+<ul>
+<li>Commerce integration credentials must be stored and accessed securely</li>
+<li>Checkout processes must integrate with PCI-compliant payment providers</li>
+<li>Webhook processing must validate and sanitize incoming data</li>
+<li>User interactions must be protected against common web vulnerabilities</li>
+</ul>
+<p>---</p>
+<h2>Summary of Key Implementation Constraints</h2>
+<table><tbody>
+<tr><td>Constraint</td><td>Description</td></tr>
+<tr><td><strong>Hidden Products</strong></td><td>Products tagged as &quot;hidden&quot; must be excluded from public catalog browsing and search results</td></tr>
+<tr><td><strong>Persistent Cart</strong></td><td>Cart state must survive across browser sessions using secure client-side storage</td></tr>
+<tr><td><strong>Cache Invalidation</strong></td><td>Webhook-driven cache invalidation must trigger on catalog changes via Shopify events</td></tr>
+<tr><td><strong>Multi-Provider Abstraction</strong></td><td>Architecture must allow swapping commerce backends without frontend impact</td></tr>
+<tr><td><strong>Environment Configuration</strong></td><td>All required commerce provider credentials must be validated at startup</td></tr>
+<tr><td><strong>Security</strong></td><td>All external integrations require authentication; webhooks must be properly secured</td></tr>
+</tbody></table>
+<p>This document captures the complete set of business requirements, stakeholder needs, core capabilities, operational constraints, and compliance obligations for the ecommerce storefront template. All findings are drawn directly from the analyzed repository requirements without addition, removal, or interpretation beyond what is explicitly stated.</p>
+</main>
+</body>
+</html>

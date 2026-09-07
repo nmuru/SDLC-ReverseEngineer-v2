@@ -1,0 +1,13 @@
+{
+  "run_id": "418a8be53b4b4ed48b910295589f742c",
+  "status": "completed",
+  "repo_url": "https://github.com/nmuru/SDLC-ReverseEngineer-v2",
+  "selected_phases": [
+    "future-directions"
+  ],
+  "completed_phases": [
+    "future-directions"
+  ],
+  "failures": [],
+  "active_phase": null
+}

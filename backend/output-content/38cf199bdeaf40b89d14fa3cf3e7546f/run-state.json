@@ -1,0 +1,11 @@
+{
+  "run_id": "38cf199bdeaf40b89d14fa3cf3e7546f",
+  "status": "running",
+  "repo_url": "https://github.com/vercel/commerce",
+  "selected_phases": [
+    "business-purpose"
+  ],
+  "completed_phases": [],
+  "failures": [],
+  "active_phase": null
+}

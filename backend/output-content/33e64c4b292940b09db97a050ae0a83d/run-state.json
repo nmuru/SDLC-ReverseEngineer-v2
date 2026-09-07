@@ -1,0 +1,17 @@
+{
+  "run_id": "33e64c4b292940b09db97a050ae0a83d",
+  "status": "cancelled",
+  "repo_url": "https://github.com/vercel/commerce",
+  "selected_phases": [
+    "testing-harness",
+    "low-level-design"
+  ],
+  "completed_phases": [
+    "business-purpose",
+    "design-pattern",
+    "future-directions",
+    "high-level-design"
+  ],
+  "failures": [],
+  "active_phase": null
+}

@@ -1,0 +1,19 @@
+# Phase Research Brief
+
+Research schema: 3
+Phase: business-purpose
+
+> This is an upstream reasoning artifact. It is not authoritative evidence or final SDLC documentation. Material claims must be verified against repository source.
+Phase Summary: Business Purpose and Domain Scope
+
+Next.js Commerce is Vercel's official Shopify ecommerce starter template, positioned as a production-ready, server-rendered application template for deployment on Vercel. The repository explicitly targets developers who need a high-performance ecommerce frontend backed by Shopify's Storefront API, with Vercel actively maintaining only the Shopify variant while encouraging other providers to fork and replace the `lib/shopify` layer. The README confirms the template uses React Server Components, Server Actions, Suspense, and `useOptimistic`, and notes that alternative providers should be able to swap out `lib/shopify` while leaving the rest unchanged.
+
+The domain purpose is to provide a complete browsing and purchasing experience for Shopify merchants. The application serves end users browsing products, managing carts, and checking out, while developers deploy and customize the template. Value is delivered through modern React 19 and Next.js 15 patterns—React Server Components, Server Actions, Suspense, and `useOptimistic`—that optimize rendering and data fetching against Shopify's API. The template demonstrates how to build a commerce frontend with server-side data fetching and client-side interactivity coexisting.
+
+Major capabilities include product catalog browsing (home carousel, collection grids, search, product detail pages with variant selectors), cart management with optimistic updates, and redirect-based checkout to Shopify's hosted checkout. The system distinguishes server-side data fetching (collections, products, menus, pages) from client-side interactivity (cart modal, variant selectors, search). Cart persistence uses cookie-based cart IDs with Server Actions handling mutations. The search and filter system supports collection filtering and sorting via Next.js Form navigation.
+
+System boundaries are clearly defined: the Shopify Storefront API is the sole commerce backend, requiring `SHOPIFY_STORE_DOMAIN` and `SHOPIFY_STOREFRONT_ACCESS_TOKEN`. Vercel is the deployment target with `SHOPIFY_REVALIDATION_SECRET` for webhook-driven ISR via `app/api/revalidate/route.ts`. The architecture separates `lib/shopify/` (API integration) from the rest of the template, allowing providers to swap implementations. OpenGraph and sitemap generation provide per-product and per-collection SEO metadata.
+
+Important uncertainties remain around payment processing, user authentication, discount codes, and shipping logic—these appear absent, suggesting reliance on Shopify's native checkout capabilities. The revalidation webhook integration point is not detailed in the source symbols. The template does not appear to handle account management or custom payment flows beyond Shopify checkout redirection. The evidence does not reveal how the carousel or featured grid content is populated, nor does it clarify whether the search page supports full-text search or only collection-based filtering.
+
+Evidence paths include README.md (repository intent and provider strategy), `lib/shopify/index.ts` (API operations including shopifyFetch, createCart, addToCart, getProduct), `components/cart/actions.ts` (cart mutations and cookie-based cart ID persistence), and `app/api/revalidate/route.ts` (ISR endpoint). The deterministic intelligence confirms 78 files considered, with TypeScript dominant (45 TXT files) and key entry points at `lib/shopify/index.ts`, `components/grid/index.tsx`, and navbar/search components. Repository topology shows 32 component files, 19 app files, and 15 lib files, with the Shopify integration layer concentrated in `lib/shopify/` across types, fragments, queries, and mutations.

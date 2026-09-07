@@ -1,0 +1,21 @@
+{
+  "run_id": "eee5f1c253444eb3adc49e595a3b98e6",
+  "status": "failed",
+  "repo_url": "https://github.com/vercel/commerce",
+  "selected_phases": [
+    "business-purpose",
+    "business-requirements"
+  ],
+  "completed_phases": [
+    "business-requirements"
+  ],
+  "failures": [
+    {
+      "phase": "business-purpose",
+      "phase_name": "Business Purpose",
+      "error_type": "PermissionError",
+      "error": "[WinError 32] The process cannot access the file because it is being used by another process: 'C:\\\\ReverseEngineer-SDLC-v2\\\\ReverseEngineer-SDLC\\\\SDLC-Reverse-Engineer\\\\backend\\\\output-content\\\\eee5f1c253444eb3adc49e595a3b98e6\\\\run-state.tmp' -> 'C:\\\\ReverseEngineer-SDLC-v2\\\\ReverseEngineer-SDLC\\\\SDLC-Reverse-Engineer\\\\backend\\\\output-content\\\\eee5f1c253444eb3adc49e595a3b98e6\\\\run-state.json'"
+    }
+  ],
+  "active_phase": null
+}
