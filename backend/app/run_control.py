@@ -8,6 +8,11 @@ import time
 from pathlib import Path
 from typing import Any, Optional
 
+from .exporter import create_download_package
+
+
+_download_package_lock = threading.Lock()
+
 
 class RunControl:
     def __init__(self, run_id: str, state_path: Path) -> None:
@@ -78,6 +83,15 @@ class RunControl:
                 self.completed_phases.append(phase)
             self.active_phase = None
         self.persist()
+        # Keep the V1 download package current so completed work is downloadable
+        # even while later phases are still running.
+        with _download_package_lock:
+            try:
+                create_download_package(self.state_path.parent)
+            except OSError:
+                # Export is auxiliary UI functionality; never fail an analysis
+                # phase merely because the package cannot be refreshed.
+                pass
 
     def phase_failed(self, failure: dict[str, Any]) -> None:
         with self._lock:
