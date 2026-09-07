@@ -24,8 +24,29 @@ class RunControl:
         self.last_heartbeat = time.monotonic()
 
     def initialize(self, *, repo_url: str, selected_phases: list[str]) -> None:
+        """Start or continue a workspace without discarding completed phase history.
+
+        V1 uses one browser workspace for progressive analysis. Returning to the
+        repository/phases screen and selecting additional phases reuses the same
+        workspace/run id. Preserve the completed phases already written to that
+        workspace, but start the newly selected work with its first phase active.
+        """
+        previous_completed: list[str] = []
+        try:
+            if self.state_path.is_file():
+                previous = json.loads(self.state_path.read_text(encoding="utf-8"))
+                if previous.get("repo_url") == repo_url and previous.get("status") in {"completed", "failed", "cancelled"}:
+                    previous_completed = list(previous.get("completed_phases", []))
+        except (OSError, json.JSONDecodeError, TypeError):
+            previous_completed = []
+
+        self.status = "running"
         self.repo_url = repo_url
         self.selected_phases = list(selected_phases)
+        self.completed_phases = previous_completed
+        self.failures = []
+        self.active_phase = selected_phases[0] if selected_phases else None
+        self.cancel_event.clear()
         self.last_heartbeat = time.monotonic()
         self.persist()
 
