@@ -15,6 +15,7 @@ from fastapi.responses import FileResponse, StreamingResponse
 from .agent_runner import AgentRunnerError
 from .analyzer import analyze_repository
 from .config import settings
+from .memory_guard import MemoryCapacityError, MemoryCapacityGuard, capacity_diagnostics
 from .run_control import RunCancelled, RunControl, load_persisted_run
 from .schemas import AnalyzeRequest
 
@@ -27,6 +28,8 @@ _run_controls: dict[str, RunControl] = {}
 _run_controls_lock = Lock()
 UI_HEARTBEAT_TIMEOUT_SECONDS = 8.0
 UI_HEARTBEAT_SCAN_SECONDS = 2.0
+MEMORY_MIN_AVAILABLE_MB = 256
+MEMORY_CHECK_INTERVAL_SECONDS = 2.0
 
 
 def _output_root() -> Path:
@@ -110,8 +113,9 @@ Thread(target=_ui_heartbeat_watchdog, daemon=True).start()
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+def health() -> dict[str, Any]:
+    snapshot = capacity_diagnostics()
+    return {"status": "ok", "memory": snapshot}
 
 
 @app.get("/api/analysis/{work_id}/status")
@@ -205,6 +209,13 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             raise HTTPException(status_code=409, detail="An analysis with this work ID is already running.")
 
     try:
+        try:
+            ensure_available = __import__("app.memory_guard", fromlist=["ensure_memory_available"]).ensure_memory_available
+            ensure_available(MEMORY_MIN_AVAILABLE_MB, "analysis")
+        except MemoryCapacityError as exc:
+            logger.warning("Rejecting analysis because backend memory capacity is low: %s", exc)
+            raise HTTPException(status_code=503, detail=exc.user_message) from exc
+
         resolved_run_id = requested_run_id or __import__("uuid").uuid4().hex
         output_run_dir = _output_root() / resolved_run_id
         output_run_dir.mkdir(parents=True, exist_ok=True)
@@ -212,9 +223,13 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
         control.initialize(repo_url=repo_url, selected_phases=request.selected_phases)
         with _run_controls_lock:
             _run_controls[resolved_run_id] = control
+    except HTTPException:
+        raise
     except OSError as exc:
         raise HTTPException(status_code=500, detail=f"Unable to initialize analysis workspace: {exc}") from exc
 
+    memory_guard = MemoryCapacityGuard(control, MEMORY_CHECK_INTERVAL_SECONDS)
+    memory_guard.start()
     stream_run_id = {"value": resolved_run_id}
 
     def on_phase_complete(phase_result: dict) -> None:
@@ -224,14 +239,22 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
         try:
             results = analyze_repository(repo_url, phases_per_batch=settings.phases_per_batch, batch_mode=settings.batch_mode, selected_phases=request.selected_phases, work_id=resolved_run_id, on_phase_complete=on_phase_complete, provider=request.provider, model=request.model, api_key=request.api_key, run_control=control)
             if control.is_cancelled():
-                control.finish("cancelled")
-                event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": resolved_run_id, "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
+                if memory_guard.triggered.is_set():
+                    control.finish("failed")
+                    event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": resolved_run_id, "error": MemoryCapacityError.user_message})
+                else:
+                    control.finish("cancelled")
+                    event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": resolved_run_id, "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
             else:
                 control.finish("completed")
                 event_queue.put({"type": "analysis_completed", "repo_url": repo_url, "run_id": results["run_id"], "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
         except RunCancelled:
-            control.finish("cancelled")
-            event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": control.run_id, "completed_phases": list(control.snapshot()["completed_phases"]), "failed_phases": control.snapshot()["failures"]})
+            if memory_guard.triggered.is_set():
+                control.finish("failed")
+                event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": MemoryCapacityError.user_message})
+            else:
+                control.finish("cancelled")
+                event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": control.run_id, "completed_phases": list(control.snapshot()["completed_phases"]), "failed_phases": control.snapshot()["failures"]})
         except (AgentRunnerError, ValueError) as exc:
             control.finish("failed")
             event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": str(exc)})
@@ -239,6 +262,8 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             control.finish("failed")
             logger.exception("Unexpected analysis failure: repo_url=%s", repo_url)
             event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}"})
+        finally:
+            memory_guard.stop()
 
     Thread(target=run_analysis, daemon=True).start()
 
