@@ -11,8 +11,6 @@ export default function WorkspaceCloseControl() {
   useEffect(() => {
     const refresh = () => {
       try {
-        // Legacy localStorage was shared by every localhost tab. Remove it so
-        // older V1 workspaces can never be restored by the new UI.
         window.localStorage.removeItem(STORAGE_KEY);
         const raw = window.sessionStorage.getItem(STORAGE_KEY);
         const stored = raw ? JSON.parse(raw) as { runId?: string } : null;
@@ -69,5 +67,5 @@ export default function WorkspaceCloseControl() {
 
   if (!runId) return null;
 
-  return <button type="button" onClick={closeWorkspace} style={{ position: "fixed", top: 44, right: 14, zIndex: 50, minHeight: 34, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "var(--text)", fontSize: 12, fontWeight: 700 }}>Close workspace</button>;
+  return <button type="button" onClick={closeWorkspace} style={{ position: "fixed", top: 58, right: 14, zIndex: 50, minHeight: 34, padding: "0 12px", border: "1px solid var(--border)", borderRadius: 8, background: "var(--surface)", color: "var(--text)", fontSize: 12, fontWeight: 700 }}>Close workspace</button>;
 }
