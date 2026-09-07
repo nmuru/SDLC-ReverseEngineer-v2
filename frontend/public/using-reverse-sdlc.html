@@ -31,15 +31,24 @@
   <h1>Using Reverse SDLC</h1>
   <p class="intro">A practical guide to getting useful, reliable documentation from an existing software repository.</p>
 
+  <p>AI technology, particularly today's coding LLMs, has fundamentally changed the art of software engineering and development.</p>
+  <p>The speed and intelligence of these models make Agile development even more meaningful. Rapid prototyping, iterative development, and reaching a production-ready version in a few iterations are increasingly practical.</p>
+  <p>But there is another side to this acceleration.</p>
+  <p>Once an application has been built, it can become difficult to understand, refactor, maintain, or enhance—especially when the AI-assisted team or developers who created it are no longer available. Even when they are, having clear, structured documentation of an existing codebase is a significant advantage.</p>
+  <p>This is where ReverseEngineer-SDLC comes in.</p>
+  <p>This demo application takes an existing GitHub repository and progressively reconstructs a detailed Software Development Life Cycle (SDLC) dossier covering its business purpose, business requirements, features, software requirements, architecture, design, implementation, testing, and future directions.</p>
+  <p>We see this as particularly relevant to the emerging world of Spec-Driven Development. If software specifications and structured engineering artifacts become an increasingly important input to AI coding tools—alongside engineering guidance such as <code>SKILL.md</code> files—then creating a reliable baseline from an existing application becomes an important capability.</p>
+  <p>In that sense, this application is not intended to replace the engineers who understand a system. It is intended to help create a first-hand, structured baseline of an existing codebase: a starting point from which engineers and AI tools can understand, review, refactor, enhance, and evolve the software.</p>
+
   <h2>1. What should I expect from this application?</h2>
   <p>Reverse SDLC helps you understand an existing software repository and turn what is already implemented into structured engineering documentation.</p>
   <p>Depending on the phases you select, the output can help you understand:</p>
   <ul><li>Business purpose and product intent</li><li>Requirements and functional behavior</li><li>Architecture and technical design</li><li>Implementation details</li><li>Testing and validation</li><li>Future directions, gaps, and technical debt</li></ul>
   <p>The quality of the result depends on both the repository and the AI model being used. This application is intended to accelerate understanding and documentation, not replace engineering judgment.</p>
 
-  <h2>2. Run a small group of phases at a time</h2>
-  <div class="callout"><strong>Recommended: run about 3–4 phases at a time.</strong> Provider rate limits can prevent a larger request from completing. Free models may have tighter limits; as a practical example, a free model may not reliably accept more than 3 phases in one request.</div>
-  <p>If you need all phases, split them into several runs. This also makes it easier to identify and rerun a phase if one result needs improvement.</p>
+  <h2>2. The application can run all 11 phases in parallel</h2>
+  <div class="callout"><strong>All 11 SDLC phases can be selected and run in parallel.</strong> However, if you anticipate provider rate-limit problems, we suggest running about 3 phases at a time. This can make failures easier to isolate and can reduce the likelihood of hitting model or provider limits.</div>
+  <p>If you need all phases and encounter rate limits, split them into several runs. This also makes it easier to identify and rerun a phase if one result needs improvement.</p>
 
   <h2>3. You do not need an expensive model to start</h2>
   <p>This application does not require a frontier model. You can use OpenRouter and free models to establish a useful baseline. OpenRouter can route requests to free models made available by different providers, including models such as Nemotron, LFM, Cohere, and others.</p>
