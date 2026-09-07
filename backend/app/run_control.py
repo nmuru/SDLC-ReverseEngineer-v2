@@ -25,17 +25,11 @@ class RunControl:
         self.selected_phases: list[str] = []
         self.completed_phases: list[str] = []
         self.failures: list[dict[str, Any]] = []
+        self.error: str | None = None
         self.active_phase: Optional[str] = None
         self.last_heartbeat = time.monotonic()
 
     def initialize(self, *, repo_url: str, selected_phases: list[str]) -> None:
-        """Start or continue a workspace without discarding completed phase history.
-
-        V1 uses one browser workspace for progressive analysis. Returning to the
-        repository/phases screen and selecting additional phases reuses the same
-        workspace/run id. Preserve the completed phases already written to that
-        workspace, but start the newly selected work with its first phase active.
-        """
         previous_completed: list[str] = []
         try:
             if self.state_path.is_file():
@@ -50,6 +44,7 @@ class RunControl:
         self.selected_phases = list(selected_phases)
         self.completed_phases = previous_completed
         self.failures = []
+        self.error = None
         self.active_phase = selected_phases[0] if selected_phases else None
         self.cancel_event.clear()
         self.last_heartbeat = time.monotonic()
@@ -83,14 +78,10 @@ class RunControl:
                 self.completed_phases.append(phase)
             self.active_phase = None
         self.persist()
-        # Keep the V1 download package current so completed work is downloadable
-        # even while later phases are still running.
         with _download_package_lock:
             try:
                 create_download_package(self.state_path.parent)
             except OSError:
-                # Export is auxiliary UI functionality; never fail an analysis
-                # phase merely because the package cannot be refreshed.
                 pass
 
     def phase_failed(self, failure: dict[str, Any]) -> None:
@@ -100,9 +91,10 @@ class RunControl:
             self.active_phase = None
         self.persist()
 
-    def finish(self, status: str) -> None:
+    def finish(self, status: str, error: str | None = None) -> None:
         with self._lock:
             self.status = status
+            self.error = error
             self.active_phase = None
         self.persist()
 
@@ -118,6 +110,7 @@ class RunControl:
                 "selected_phases": list(self.selected_phases),
                 "completed_phases": list(self.completed_phases),
                 "failures": list(self.failures),
+                "error": self.error,
                 "active_phase": self.active_phase,
             }
 
