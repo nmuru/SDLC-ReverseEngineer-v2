@@ -35,6 +35,8 @@ Set `RUNTIME_MODE=production` in the backend environment when production retenti
 
 The analysis endpoint is an event stream. Backend validation and execution errors are returned as an `analysis_failed` event so the frontend can display a useful message instead of waiting indefinitely. Renderer requests retry HTTP 429 responses with bounded backoff before reporting failure.
 
+This is a V1 demo/evaluation application and not every edge case has been exhaustively tested. If a phase run encounters an unexpected failure or repository-access error, do not treat the existing completed work as lost: return to the main setup page and rerun the affected phase, or start a new browser tab/workspace. Completed phase artifacts should remain available in the workspace and can be downloaded while later phases are still running.
+
 When a run fails after some phases have completed, completed phase results remain available in the current workspace. Select a completed phase to inspect it, or use the setup screen to explicitly select a phase again and rerun it. A rerun replaces that phase's `agent-output.md` and `raw.md` artifacts for the same `work_id`.
 
 ## Mermaid diagrams
