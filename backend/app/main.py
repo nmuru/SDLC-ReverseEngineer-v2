@@ -240,7 +240,8 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
             results = analyze_repository(repo_url, phases_per_batch=settings.phases_per_batch, batch_mode=settings.batch_mode, selected_phases=request.selected_phases, work_id=resolved_run_id, on_phase_complete=on_phase_complete, provider=request.provider, model=request.model, api_key=request.api_key, run_control=control)
             if control.is_cancelled():
                 if memory_guard.triggered.is_set():
-                    control.finish("failed")
+                    control.finish("failed", MemoryCapacityError.user_message)
+                    logger.warning("Analysis stopped by memory capacity guard work_id=%s", resolved_run_id)
                     event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": resolved_run_id, "error": MemoryCapacityError.user_message})
                 else:
                     control.finish("cancelled")
@@ -250,16 +251,17 @@ def analyze(request: AnalyzeRequest) -> StreamingResponse:
                 event_queue.put({"type": "analysis_completed", "repo_url": repo_url, "run_id": results["run_id"], "completed_phases": list(results["results"].keys()), "failed_phases": results.get("failures", [])})
         except RunCancelled:
             if memory_guard.triggered.is_set():
-                control.finish("failed")
+                control.finish("failed", MemoryCapacityError.user_message)
+                logger.warning("Analysis stopped by memory capacity guard work_id=%s", control.run_id)
                 event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": MemoryCapacityError.user_message})
             else:
                 control.finish("cancelled")
                 event_queue.put({"type": "analysis_cancelled", "repo_url": repo_url, "run_id": control.run_id, "completed_phases": list(control.snapshot()["completed_phases"]), "failed_phases": control.snapshot()["failures"]})
         except (AgentRunnerError, ValueError) as exc:
-            control.finish("failed")
+            control.finish("failed", str(exc))
             event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": str(exc)})
         except Exception as exc:
-            control.finish("failed")
+            control.finish("failed", f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}")
             logger.exception("Unexpected analysis failure: repo_url=%s", repo_url)
             event_queue.put({"type": "analysis_failed", "repo_url": repo_url, "run_id": control.run_id, "error": f"Analysis failed due to an unexpected backend error: {type(exc).__name__}: {exc}"})
         finally:
