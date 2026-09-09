@@ -25,18 +25,34 @@ const EMPTY_STATE: ReviewState = {
   isDemo: true,
 };
 
+function readLandingState(): Partial<ReviewState> {
+  const repo = document.querySelector('input[aria-label="GitHub repository URL"]') as HTMLInputElement | null;
+  const provider = document.querySelector('select[aria-label="AI provider"]') as HTMLSelectElement | null;
+  const model = document.querySelector('input[aria-label="AI model"]') as HTMLInputElement | null;
+  const apiKey = document.querySelector('input[aria-label="AI provider API key"]') as HTMLInputElement | null;
+  return {
+    repoUrl: repo?.value?.trim() ?? "",
+    provider: provider?.value ?? "",
+    model: model?.value?.trim() ?? "",
+    apiKey: apiKey?.value ?? "",
+  };
+}
+
 export default function ReviewCodeBaseControl() {
   const [state, setState] = useState<ReviewState>(EMPTY_STATE);
   const [running, setRunning] = useState(false);
   const [message, setMessage] = useState("");
 
   useEffect(() => {
-    const receiveState = (event: Event) => {
-      const detail = (event as CustomEvent<ReviewState>).detail;
-      if (detail) setState(detail);
+    const capture = () => {
+      const next = readLandingState();
+      if (!next.repoUrl && !next.apiKey && !next.model && !next.provider) return;
+      setState((current) => ({ ...current, ...next }));
     };
 
-    window.addEventListener("reverse-engineer:workspace-state", receiveState);
+    capture();
+    document.addEventListener("input", capture, true);
+    document.addEventListener("change", capture, true);
 
     try {
       const raw = window.sessionStorage.getItem(STORAGE_KEY);
@@ -45,16 +61,39 @@ export default function ReviewCodeBaseControl() {
         setState((current) => ({
           ...current,
           runId: stored.runId && stored.runId !== "vercel-demo" ? stored.runId : null,
-          repoUrl: stored.repoUrl ?? "",
+          repoUrl: stored.repoUrl ?? current.repoUrl,
           completedPhases: stored.completedPhases ?? [],
           isDemo: false,
         }));
       }
     } catch {
-      // The landing page state event is authoritative once it is mounted.
+      // The live landing-page inputs remain the source for provider/model/API key.
     }
 
-    return () => window.removeEventListener("reverse-engineer:workspace-state", receiveState);
+    return () => {
+      document.removeEventListener("input", capture, true);
+      document.removeEventListener("change", capture, true);
+    };
+  }, []);
+
+  useEffect(() => {
+    const refreshRun = () => {
+      try {
+        const raw = window.sessionStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const stored = JSON.parse(raw) as { runId?: string; repoUrl?: string; completedPhases?: string[] };
+        setState((current) => ({
+          ...current,
+          runId: stored.runId && stored.runId !== "vercel-demo" ? stored.runId : null,
+          repoUrl: stored.repoUrl ?? current.repoUrl,
+          completedPhases: stored.completedPhases ?? current.completedPhases,
+          isDemo: false,
+        }));
+      } catch {}
+    };
+    refreshRun();
+    const timer = window.setInterval(refreshRun, 1000);
+    return () => window.clearInterval(timer);
   }, []);
 
   async function review() {
