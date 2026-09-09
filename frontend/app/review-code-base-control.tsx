@@ -18,13 +18,10 @@ export default function ReviewCodeBaseControl({ repoUrl, provider, model, apiKey
   const [message, setMessage] = useState("");
 
   async function review() {
-    if (!runId || running || completedPhases.length === 0) return;
+    if (!runId || running || completedPhases.length === 0 || !apiKey.trim()) return;
     setMessage("");
 
-    if (!repoUrl.trim() || !apiKey.trim()) {
-      setMessage("Review is unavailable because the current analysis session no longer has its API key. Start a new analysis rather than entering a different repository.");
-      return;
-    }
+    if (!repoUrl.trim()) return;
 
     setRunning(true);
     try {
@@ -82,7 +79,7 @@ export default function ReviewCodeBaseControl({ repoUrl, provider, model, apiKey
     }
   }
 
-  if (!runId || completedPhases.length === 0) return null;
+  if (!runId || completedPhases.length === 0 || !apiKey.trim()) return null;
 
   return (
     <div style={{ marginTop: 8 }}>
