@@ -20,8 +20,8 @@ export default function ReviewCodeBaseControl() {
       try {
         const raw = window.sessionStorage.getItem(STORAGE_KEY);
         if (!raw) { setRunId(null); return; }
-        const stored = JSON.parse(raw) as { runId?: string; isDemo?: boolean };
-        setRunId(stored.runId && stored.runId !== "vercel-demo" ? stored.runId : null);
+        const stored = JSON.parse(raw) as { runId?: string; completedPhases?: string[] };
+        setRunId(stored.runId && stored.runId !== "vercel-demo" && (stored.completedPhases?.length ?? 0) > 0 ? stored.runId : null);
       } catch { setRunId(null); }
     };
     refresh();
@@ -36,10 +36,7 @@ export default function ReviewCodeBaseControl() {
     const model = readInputValue('input[placeholder*="e.g."]') || "openrouter/free";
     const provider = readInputValue("select") || "openrouter";
     const apiKey = readInputValue('input[type="password"]');
-    if (!repoUrl || !apiKey) {
-      setMessage("Enter the repository and API key before reviewing.");
-      return;
-    }
+    if (!repoUrl || !apiKey) { setMessage("Enter the repository and API key before reviewing."); return; }
     setRunning(true);
     try {
       const response = await fetch(`${API_BASE_URL}/api/analyze`, {
@@ -67,10 +64,7 @@ export default function ReviewCodeBaseControl() {
           if (!data) continue;
           const event = JSON.parse(data) as { type?: string; error?: string };
           if (event.type === "analysis_failed") throw new Error(event.error || "Review Code Base failed.");
-          if (event.type === "analysis_completed") {
-            window.location.href = `/review?runId=${encodeURIComponent(runId)}`;
-            return;
-          }
+          if (event.type === "analysis_completed") { window.location.href = `/review?runId=${encodeURIComponent(runId)}`; return; }
         }
       }
       window.location.href = `/review?runId=${encodeURIComponent(runId)}`;
