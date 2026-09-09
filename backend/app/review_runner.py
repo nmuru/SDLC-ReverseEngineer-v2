@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+import tempfile
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -109,12 +110,7 @@ async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, 
     ])
 
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
-    agent = Agent(
-        name="Review Code Base",
-        instructions=instructions,
-        model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client),
-        tools=_build_review_tools(repository, output_run_dir),
-    )
+    agent = Agent(name="Review Code Base", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_review_tools(repository, output_run_dir))
     diagnostics = ReviewDiagnostics(uuid.uuid4().hex[:12])
     if run_control and run_control.is_cancelled():
         raise RunCancelled("Analysis stopped by the user.")
@@ -141,17 +137,23 @@ def run_review_code_base(*, repo_url: str, output_run_dir: Path, provider: str, 
     if not _artifact_catalog(output_run_dir):
         raise ReviewRunnerError("No completed SDLC phase outputs are available for Review Code Base.")
 
-    with __import__("tempfile").TemporaryDirectory(prefix="review-code-base-") as tmp:
-        workspace = Path(tmp)
-        repository = clone_repository(repo_url, workspace)
-        raw_result, actual_model, turns, tool_calls = asyncio.run(_run_review(repository=repository, output_run_dir=output_run_dir, provider=provider, model=model, api_key=api_key, run_control=run_control))
-
-    review_dir = output_run_dir / "review-code-base"
-    review_dir.mkdir(parents=True, exist_ok=True)
-    (review_dir / "agent-output.md").write_text(raw_result, encoding="utf-8")
-    rendered = render_analysis(phase="review-code-base", analysis=raw_result, provider=provider, model=actual_model, api_key=api_key, run_control=run_control)
-    raw_path = review_dir / "raw.md"
-    raw_path.write_text(f"---\nmodel: {actual_model}\n---\n\n{rendered}\n", encoding="utf-8")
-    provenance = {"model": actual_model, "turns": turns, "tool_calls": tool_calls, "source_artifacts": [item["phase"] for item in _artifact_catalog(output_run_dir)]}
-    (review_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
-    return {"raw_path": str(raw_path), "content": rendered, "provenance": provenance}
+    if run_control:
+        run_control.phase_started("review-code-base")
+    try:
+        with tempfile.TemporaryDirectory(prefix="review-code-base-") as tmp:
+            repository = clone_repository(repo_url, Path(tmp))
+            raw_result, actual_model, turns, tool_calls = asyncio.run(_run_review(repository=repository, output_run_dir=output_run_dir, provider=provider, model=model, api_key=api_key, run_control=run_control))
+        review_dir = output_run_dir / "review-code-base"
+        review_dir.mkdir(parents=True, exist_ok=True)
+        (review_dir / "agent-output.md").write_text(raw_result, encoding="utf-8")
+        rendered = render_analysis(phase="review-code-base", analysis=raw_result, provider=provider, model=actual_model, api_key=api_key, run_control=run_control)
+        raw_path = review_dir / "raw.md"
+        raw_path.write_text(f"---\nmodel: {actual_model}\n---\n\n{rendered}\n", encoding="utf-8")
+        provenance = {"model": actual_model, "turns": turns, "tool_calls": tool_calls, "source_artifacts": [item["phase"] for item in _artifact_catalog(output_run_dir)]}
+        (review_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
+        if run_control: run_control.phase_completed("review-code-base")
+        return {"raw_path": str(raw_path), "content": rendered, "provenance": provenance}
+    except Exception:
+        if run_control and not run_control.is_cancelled():
+            run_control.phase_failed({"phase": "review-code-base", "phase_name": "Review Code Base", "error_type": "ReviewRunnerError", "error": "Review Code Base execution failed."})
+        raise
