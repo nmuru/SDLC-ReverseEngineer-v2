@@ -4,6 +4,7 @@ import WorkspaceCloseControl from "./workspace-close-control";
 import CancelledReturnControl from "./cancelled-return-control";
 import V1WorkspaceDisplayControl from "./v1-workspace-display-control";
 import BackendCapacityControl from "./backend-capacity-control";
+import ReviewCodeBaseControl from "./review-code-base-control";
 
 export const metadata: Metadata = {
   title: "ReverseEngineer-SDLC",
@@ -11,5 +12,5 @@ export const metadata: Metadata = {
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="en"><body><WorkspaceCloseControl /><CancelledReturnControl /><V1WorkspaceDisplayControl /><BackendCapacityControl />{children}</body></html>;
+  return <html lang="en"><body><WorkspaceCloseControl /><CancelledReturnControl /><V1WorkspaceDisplayControl /><BackendCapacityControl /><ReviewCodeBaseControl />{children}</body></html>;
 }
