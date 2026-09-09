@@ -1,9 +1,8 @@
 """
 Prompt contract for the presentation-stage LLM.
 
-The renderer is an editor, not a second reverse-engineering agent. It must
-preserve the analytical substance and certainty of the source material while
-making the result substantially easier to read.
+The analysis stage is responsible for repository exploration and reasoning.
+The rendering stage is repository-blind and receives the complete raw output.
 """
 
 from textwrap import dedent
@@ -50,7 +49,12 @@ RENDER_SYSTEM_PROMPT = dedent(
     Never create a new technical conclusion merely to make the document look
     complete.
 
-    Never change the scope of the analysis. Do not add recommendations unless
+    Never create, expand, or invent recommendations. If the source analysis
+    contains a `Recommendations` section, preserve all of its substantive
+    recommendations and keep that section as the final section of the rendered
+    document. Do not move later material after it.
+
+    Do not change the scope of the analysis. Do not add recommendations unless
     they already exist in the source and are appropriate to the phase.
 
     Do not describe your editing process. Return only the finished document.
@@ -98,6 +102,9 @@ def build_render_prompt(phase: str, analysis: str) -> tuple[str, str]:
           version in place of the complete analysis.
         - Remove only agent/process commentary that is not part of the
           repository analysis itself.
+        - If a `Recommendations` section is present, preserve all substantive
+          recommendations and make `## Recommendations` the final section of
+          the document.
 
         Raw analysis begins below.
 
