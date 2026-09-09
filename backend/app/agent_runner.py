@@ -221,6 +221,14 @@ Do not invent details. Distinguish verified facts, reasonable inferences, and un
 The repository is read-only. Do not modify it.
 Return only complete professional Markdown documentation for the requested phase. Do not describe the agent, tools, prompts, intelligence collection, or execution process.
 
+REQUIRED OUTPUT CONTRACT
+Every phase document must end with a section titled exactly `## Recommendations`.
+Provide 3–5 highest-value, actionable recommendations for improving, clarifying, hardening, or evolving the area covered by this phase. Order them by likely impact.
+Each recommendation must be grounded in repository evidence and briefly state why it matters. Do not give generic best-practice advice that is unsupported by the repository.
+Recommendations may identify missing capabilities, inconsistencies, technical debt, risks, documentation/specification gaps, or concrete opportunities for improvement. Keep them relevant to the phase rather than turning the section into a general architecture review.
+If the repository evidence does not justify three material recommendations, provide only the recommendations that are justified and explicitly state that no additional material recommendations are supported by the available evidence.
+`Recommendations` must be the final section of the document.
+
 INVESTIGATION BUDGET
 You have a finite investigation budget defined by the runner. Prioritize high-value evidence gathering early. As the remaining budget becomes small, stop broad exploration and transition to verification and synthesis. On the final available turn, produce the best-supported artifact possible rather than continuing investigation. Never invent missing evidence; mark it unknown or unverified."""
 
