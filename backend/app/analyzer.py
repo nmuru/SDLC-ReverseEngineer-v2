@@ -18,8 +18,10 @@ from .resource_diagnostics import ResourceDiagnostics
 from .run_control import RunCancelled, RunControl
 from .cancellable_research import run_phase_research, run_repository_research
 from .semantic_research import write_research_artifact
+from .review_runner import run_review_code_base, ReviewRunnerError
 
 PHASES = [("business-purpose", "Business Purpose"), ("scope", "Scope"), ("features", "Features"), ("business-requirements", "Business Requirements"), ("software-requirements", "Software Requirements"), ("technology-architecture", "Technology Architecture"), ("design-pattern", "Design Pattern"), ("high-level-design", "High-Level Design"), ("low-level-design", "Low-Level Design"), ("implementation-detail", "Implementation Detail"), ("testing-harness", "Testing Harness"), ("future-directions", "Future Directions")]
+REVIEW_PHASE = ("review-code-base", "Review Code Base")
 PhaseCompleteCallback = Callable[[dict], None]
 
 
@@ -113,24 +115,39 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
     else:
         if not selected_phases: raise ValueError("selected_phases must contain at least one phase")
         if len(set(selected_phases)) != len(selected_phases): raise ValueError("selected_phases must not contain duplicates")
-        unknown = set(selected_phases) - available
-        if unknown: raise ValueError("selected_phases contains unknown phases: " + ", ".join(sorted(unknown)))
-        selected_ids = selected_phases
+        if selected_phases == [REVIEW_PHASE[0]]:
+            selected_ids = [REVIEW_PHASE[0]]
+        else:
+            unknown = set(selected_phases) - available
+            if unknown: raise ValueError("selected_phases contains unknown phases: " + ", ".join(sorted(unknown)))
+            selected_ids = selected_phases
 
-    phase_by_id = dict(PHASES); definitions = [(key, phase_by_id[key]) for key in selected_ids]; batches = [definitions[i:i + phases_per_batch] for i in range(0, len(definitions), phases_per_batch)]
     run_id = work_id or uuid.uuid4().hex
     if not run_id.isalnum(): raise ValueError("work_id must contain only letters and numbers")
-
     output_root = Path(settings.analysis_results_dir)
     if not output_root.is_absolute(): output_root = Path(__file__).resolve().parents[1] / output_root
     output_run_dir = output_root / run_id; output_run_dir.mkdir(parents=True, exist_ok=True)
     stale_download = output_run_dir / "sdlc-documentation.zip"
     if stale_download.exists(): stale_download.unlink()
+
+    if selected_ids == [REVIEW_PHASE[0]]:
+        _check_cancelled(run_control)
+        try:
+            result = run_review_code_base(repo_url=repo_url, output_run_dir=output_run_dir, provider=provider, model=model, api_key=api_key, run_control=run_control)
+        except ReviewRunnerError:
+            raise
+        except RunCancelled:
+            raise
+        create_download_package(output_run_dir)
+        if on_phase_complete:
+            on_phase_complete({"phase": REVIEW_PHASE[0], "phase_name": REVIEW_PHASE[1], "raw_analysis": result["content"], "raw_path": result["raw_path"], "run_id": run_id, "provenance": result["provenance"]})
+        return {"run_id": run_id, "results": {REVIEW_PHASE[0]: {"phase": REVIEW_PHASE[0], "phase_name": REVIEW_PHASE[1], "raw_analysis": result["content"], "raw_path": result["raw_path"], "run_id": run_id, "provenance": result["provenance"]}}, "failures": []}
+
+    phase_by_id = dict(PHASES); definitions = [(key, phase_by_id[key]) for key in selected_ids]; batches = [definitions[i:i + phases_per_batch] for i in range(0, len(definitions), phases_per_batch)]
     diagnostics_dir = Path(settings.resource_diagnostics_dir)
     if not diagnostics_dir.is_absolute(): diagnostics_dir = output_run_dir / diagnostics_dir
     diagnostics = ResourceDiagnostics(enabled=settings.resource_diagnostics_enabled, output_dir=diagnostics_dir, sample_interval_seconds=settings.resource_diagnostics_interval_seconds, run_id=run_id)
     diagnostics.start(); diagnostics.run_event("analysis_started", selected_phases=selected_ids, phases_per_batch=phases_per_batch, batch_mode=batch_mode, batch_count=len(batches), provider=provider, model=model)
-
     results: dict[str, dict] = {}; failures: list[dict] = []
     try:
         _check_cancelled(run_control)
@@ -139,18 +156,15 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
         if github_size_bytes is not None:
             diagnostics.run_event("repository_size_checked_before_clone", repository_size_bytes=github_size_bytes)
             if github_size_bytes > max_bytes: raise _repository_size_limit_error()
-
         with tempfile.TemporaryDirectory(prefix="reverse-engineer-") as tmp:
             workspace = Path(tmp); diagnostics.run_event("workspace_created", workspace=str(workspace)); repository = clone_repository(repo_url, workspace, run_control=run_control); _check_cancelled(run_control)
             size_bytes = repository_size_bytes(repository)
             if size_bytes > max_bytes: raise _repository_size_limit_error()
             diagnostics.run_event("repository_cloned", repository=str(repository), repository_size_bytes=size_bytes)
             intelligence: RepositoryIntelligence = collect_repository_intelligence(repository); diagnostics.run_event("repository_intelligence_collected", files_considered=intelligence.file_count); _check_cancelled(run_control)
-
             diagnostics.run_event("repository_research_started")
             repository_research = run_repository_research(intelligence=intelligence, repository=repository, provider=provider, model=model, api_key=api_key, run_control=run_control); _check_cancelled(run_control)
             write_research_artifact(output_run_dir / "repository-research.md", kind="repository", phase=None, content=repository_research); diagnostics.run_event("repository_research_completed", output_chars=len(repository_research), llm_requests=1)
-
             deterministic_phase_packages = {key: build_phase_intelligence(intelligence, key) for key in selected_ids}
             phase_research: dict[str, str] = {}; phase_research_failures: list[dict] = []
             diagnostics.run_event("phase_research_started", phase_count=len(selected_ids), expected_llm_requests=len(selected_ids))
@@ -163,14 +177,12 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
                     except RunCancelled: raise
                     except Exception as exc:
                         failure = _phase_failure(key, phase_name, exc); phase_research_failures.append(failure); failures.append(failure); diagnostics.run_event("phase_research_failed", phase=key, error_type=type(exc).__name__, error=str(exc)); failure_path = output_run_dir / key / "phase-research-failure.md"; failure_path.parent.mkdir(parents=True, exist_ok=True); failure_path.write_text(f"# Phase Research Failed\n\nPhase: {phase_name}\n\nError type: {type(exc).__name__}\n\nError: {exc}\n", encoding="utf-8")
-
             runnable_ids = [key for key in selected_ids if key in phase_research]; runnable_batches = []
             for batch in batches:
                 runnable_batch = [(key, name) for key, name in batch if key in phase_research]
                 if runnable_batch: runnable_batches.append(runnable_batch)
             phase_packages = {key: _phase_context(key, deterministic_phase_packages[key], repository_research, phase_research[key]) for key in runnable_ids}
             diagnostics.run_event("semantic_context_ready", repository_research_chars=len(repository_research), phase_research_chars={key: len(value) for key, value in phase_research.items()}, phase_research_failed=[failure["phase"] for failure in phase_research_failures], expected_upfront_llm_requests=1 + len(selected_ids))
-
             if batch_mode == "parallel":
                 if runnable_batches:
                     _check_cancelled(run_control)
@@ -181,7 +193,6 @@ def analyze_repository(repo_url: str, phases_per_batch: int = settings.phases_pe
             else:
                 for index, batch in enumerate(runnable_batches, start=1):
                     _check_cancelled(run_control); batch_results, batch_failures = _run_batch(batch, repository, phase_packages, output_run_dir, run_id, on_phase_complete, provider, model, api_key, diagnostics, index, run_control); results.update(batch_results); failures.extend(batch_failures)
-
         _check_cancelled(run_control)
         if failures:
             diagnostics.run_event("analysis_failed", completed_phases=list(results), failed_phases=[failure["phase"] for failure in failures])
