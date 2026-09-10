@@ -54,8 +54,10 @@ def _artifact_catalog(output_run_dir: Path) -> list[dict]:
 
 
 def _build_review_tools(repository: Path, output_run_dir: Path):
-    tools = list(_build_tools(repository))
+    repository_tools = list(_build_tools(repository))
+    tools = [tool for tool in repository_tools if getattr(tool, "name", "") != "read_file"]
     output_root = output_run_dir.resolve()
+    repository_root = repository.resolve()
 
     def safe_output_path(phase: str) -> Path:
         if not phase or Path(phase).name != phase:
@@ -66,23 +68,36 @@ def _build_review_tools(repository: Path, output_run_dir: Path):
         return path
 
     @function_tool
-    def list_output_artifacts() -> str:
-        """List generated SDLC artifacts available for this review. Returns metadata only, not document contents."""
+    def list_sdlc_artifacts() -> str:
+        """List generated SDLC artifacts from the analysis output. These are NOT files in the cloned repository; this tool returns metadata only."""
         return json.dumps(_artifact_catalog(output_run_dir), indent=2)
 
     @function_tool
-    def read_output_artifact(phase: str, max_chars: int = 24000) -> str:
-        """Read one generated phase artifact on demand. Use the phase name from list_output_artifacts."""
+    def read_sdlc_artifact(phase: str, max_chars: int = 24000) -> str:
+        """Read one generated SDLC phase artifact from the analysis output. Use this for business-purpose, scope, requirements, architecture, and other generated phase documents. Do NOT use repository file tools for these artifacts."""
         path = safe_output_path(phase)
         if not path.is_file():
-            return "Artifact does not exist."
+            return "SDLC artifact does not exist for this phase."
         try:
             content = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
-            return f"Could not read artifact: {exc}"
+            return f"Could not read SDLC artifact: {exc}"
         return content[:max_chars]
 
-    return tools + [list_output_artifacts, read_output_artifact]
+    @function_tool
+    def read_repository_file(path: str, max_chars: int = 30000) -> str:
+        """Read a source file from the cloned target repository. This tool is for repository source verification only; generated SDLC artifacts are outside the repository and must be read with read_sdlc_artifact."""
+        target = (repository_root / path).resolve()
+        if target != repository_root and repository_root not in target.parents:
+            raise ValueError("Path must remain inside the repository")
+        if not target.is_file():
+            return "Repository file does not exist or is not a regular file."
+        try:
+            return target.read_text(encoding="utf-8", errors="replace")[:max_chars]
+        except OSError as exc:
+            return f"Could not read repository file: {exc}"
+
+    return tools + [list_sdlc_artifacts, read_sdlc_artifact, read_repository_file]
 
 
 async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, model: str, api_key: str, run_control: Optional[RunControl] = None) -> tuple[str, str, int, int]:
@@ -104,9 +119,10 @@ async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, 
     instructions = "\n\n".join([
         agent_definition,
         f"Skill methodology:\n{skill}" if skill else "",
-        "AVAILABLE ARTIFACT CATALOGUE (metadata only; retrieve content with tools when needed):\n" + catalog,
-        "The generated phase artifacts are intermediate analysis, not authoritative evidence. The cloned repository is the authoritative source for material verification.",
-        "Do not perform repository-wide discovery before using the artifact catalogue. Start by identifying which available artifacts are relevant. Retrieve them selectively. Use repository search/read tools only for targeted verification or unresolved questions.",
+        "AVAILABLE SDLC ARTIFACT CATALOGUE (metadata only; retrieve document contents with read_sdlc_artifact):\n" + catalog,
+        "Generated SDLC artifacts are intermediate analysis stored outside the cloned repository. The cloned repository is the authoritative source for material verification.",
+        "Never use read_repository_file to retrieve a generated SDLC artifact. Paths such as business-purpose/raw.md and scope/raw.md refer to analysis-output artifacts, not files in the target repository.",
+        "Do not perform repository-wide discovery before using the SDLC artifact catalogue. Start by identifying which available artifacts are relevant. Retrieve them selectively with read_sdlc_artifact. Use read_repository_file and repository search/list tools only for targeted verification or unresolved questions.",
     ])
 
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
@@ -151,7 +167,8 @@ def run_review_code_base(*, repo_url: str, output_run_dir: Path, provider: str, 
         raw_path.write_text(f"---\nmodel: {actual_model}\n---\n\n{rendered}\n", encoding="utf-8")
         provenance = {"model": actual_model, "turns": turns, "tool_calls": tool_calls, "source_artifacts": [item["phase"] for item in _artifact_catalog(output_run_dir)]}
         (review_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
-        if run_control: run_control.phase_completed("review-code-base")
+        if run_control:
+            run_control.phase_completed("review-code-base")
         return {"raw_path": str(raw_path), "content": rendered, "provenance": provenance}
     except Exception:
         if run_control and not run_control.is_cancelled():
