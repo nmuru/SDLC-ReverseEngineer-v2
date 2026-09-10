@@ -5,9 +5,11 @@ description: Review available reverse-engineering phase artifacts as a cross-pha
 
 # Review Code Base
 
-Start from the artifact catalogue. Do not request or consume every artifact automatically. Retrieve only the phase outputs relevant to the current line of investigation.
+Start from the SDLC artifact catalogue. Do not request or consume every artifact automatically. Retrieve only the phase outputs relevant to the current line of investigation.
 
-Use the repository tools for targeted verification when an artifact claim is important, ambiguous, contradictory, or insufficiently evidenced. Do not rerun repository-wide discovery simply because the repository is available.
+Use `read_sdlc_artifact` to retrieve generated phase documents such as business-purpose, scope, requirements, architecture, design, implementation, testing, and future-direction artifacts. These generated documents are stored outside the cloned target repository.
+
+Use `read_repository_file` only for targeted verification against source files in the cloned target repository. Never use it to retrieve a generated SDLC artifact path such as `business-purpose/raw.md` or `scope/raw.md`.
 
 Compare available artifacts rather than treating them as independent reports. Look specifically for:
 - contradictions between scope, requirements, architecture, design, implementation, testing, deployment, and operations findings;
