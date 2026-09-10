@@ -36,8 +36,16 @@ export default function ReviewPage() {
     return () => { cancelled = true; window.clearInterval(timer); };
   }, []);
 
+  function backToWorkspace() {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.href = "/";
+  }
+
   return <main style={{ maxWidth: 1000, margin: "0 auto", padding: "32px 24px", fontFamily: "Arial, Helvetica, sans-serif" }}>
-    <div style={{ marginBottom: 20 }}><button type="button" onClick={() => { window.location.href = "/"; }} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>Back to workspace</button></div>
+    <div style={{ marginBottom: 20 }}><button type="button" onClick={backToWorkspace} style={{ padding: "8px 12px", borderRadius: 6, border: "1px solid #d1d5db", background: "white", cursor: "pointer" }}>Back to workspace</button></div>
     <h1>Review Code Base</h1>
     <p style={{ color: "#4b5563" }}>{status}</p>
     {error && <div style={{ padding: 12, borderRadius: 6, background: "#fef2f2", color: "#991b1b" }}>{error}</div>}
