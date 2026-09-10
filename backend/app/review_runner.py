@@ -58,6 +58,7 @@ def _build_review_tools(repository: Path, output_run_dir: Path):
     tools = [tool for tool in repository_tools if getattr(tool, "name", "") != "read_file"]
     output_root = output_run_dir.resolve()
     repository_root = repository.resolve()
+    accessed_artifacts: set[str] = set()
 
     def safe_output_path(phase: str) -> Path:
         if not phase or Path(phase).name != phase:
@@ -82,6 +83,7 @@ def _build_review_tools(repository: Path, output_run_dir: Path):
             content = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             return f"Could not read SDLC artifact: {exc}"
+        accessed_artifacts.add(phase)
         return content[:max_chars]
 
     @function_tool
@@ -97,10 +99,10 @@ def _build_review_tools(repository: Path, output_run_dir: Path):
         except OSError as exc:
             return f"Could not read repository file: {exc}"
 
-    return tools + [list_sdlc_artifacts, read_sdlc_artifact, read_repository_file]
+    return tools + [list_sdlc_artifacts, read_sdlc_artifact, read_repository_file], accessed_artifacts
 
 
-async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, model: str, api_key: str, run_control: Optional[RunControl] = None) -> tuple[str, str, int, int]:
+async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, model: str, api_key: str, run_control: Optional[RunControl] = None) -> tuple[str, str, int, int, list[str]]:
     provider_name = provider.strip().lower()
     if provider_name == "openrouter":
         base_url = "https://openrouter.ai/api/v1"
@@ -126,7 +128,8 @@ async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, 
     ])
 
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
-    agent = Agent(name="Review Code Base", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_review_tools(repository, output_run_dir))
+    review_tools, accessed_artifacts = _build_review_tools(repository, output_run_dir)
+    agent = Agent(name="Review Code Base", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=review_tools)
     diagnostics = ReviewDiagnostics(uuid.uuid4().hex[:12])
     if run_control and run_control.is_cancelled():
         raise RunCancelled("Analysis stopped by the user.")
@@ -142,7 +145,7 @@ async def _run_review(*, repository: Path, output_run_dir: Path, provider: str, 
         if response_model:
             actual_model = str(response_model)
             break
-    return output, actual_model, diagnostics.turns, diagnostics.tool_calls
+    return output, actual_model, diagnostics.turns, diagnostics.tool_calls, sorted(accessed_artifacts)
 
 
 def run_review_code_base(*, repo_url: str, output_run_dir: Path, provider: str, model: str, api_key: str, run_control: Optional[RunControl] = None) -> dict:
@@ -158,14 +161,14 @@ def run_review_code_base(*, repo_url: str, output_run_dir: Path, provider: str, 
     try:
         with tempfile.TemporaryDirectory(prefix="review-code-base-") as tmp:
             repository = clone_repository(repo_url, Path(tmp))
-            raw_result, actual_model, turns, tool_calls = asyncio.run(_run_review(repository=repository, output_run_dir=output_run_dir, provider=provider, model=model, api_key=api_key, run_control=run_control))
+            raw_result, actual_model, turns, tool_calls, accessed_artifacts = asyncio.run(_run_review(repository=repository, output_run_dir=output_run_dir, provider=provider, model=model, api_key=api_key, run_control=run_control))
         review_dir = output_run_dir / "review-code-base"
         review_dir.mkdir(parents=True, exist_ok=True)
         (review_dir / "agent-output.md").write_text(raw_result, encoding="utf-8")
         rendered = render_analysis(phase="review-code-base", analysis=raw_result, provider=provider, model=actual_model, api_key=api_key, run_control=run_control)
         raw_path = review_dir / "raw.md"
         raw_path.write_text(f"---\nmodel: {actual_model}\n---\n\n{rendered}\n", encoding="utf-8")
-        provenance = {"model": actual_model, "turns": turns, "tool_calls": tool_calls, "source_artifacts": [item["phase"] for item in _artifact_catalog(output_run_dir)]}
+        provenance = {"model": actual_model, "turns": turns, "tool_calls": tool_calls, "source_artifacts": accessed_artifacts}
         (review_dir / "provenance.json").write_text(json.dumps(provenance, indent=2), encoding="utf-8")
         if run_control:
             run_control.phase_completed("review-code-base")
