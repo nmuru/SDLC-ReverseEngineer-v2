@@ -92,7 +92,7 @@ export default function ReviewCodeBaseControl({ repoUrl, provider, model, apiKey
         title="Review the completed SDLC artifacts against the repository"
       >
         <span className="phase-number">RV</span>
-        <span className="phase-name">{running ? "Reviewing SDLC..." : "Review SDLC"}</span>
+        <span className="phase-name">{running ? "Reviewing Repo..." : "Review Repo"}</span>
         <span className="phase-status">→</span>
       </button>
       {message && (
