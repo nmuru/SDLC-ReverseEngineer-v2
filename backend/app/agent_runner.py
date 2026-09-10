@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_SOURCE = PROJECT_ROOT / ".agents" / "agents"
 SKILLS_SOURCE = PROJECT_ROOT / ".agents" / "skills"
+COMMON_AGENT_SOURCE = PROJECT_ROOT / ".agents" / "agent.md"
 
 logger.info(
     "OpenAI tracing key loaded: %s",
@@ -98,6 +99,12 @@ def repository_size_bytes(repository: Path) -> int:
     except OSError as exc:
         raise AgentRunnerError(f"Could not measure cloned repository size: {exc}") from exc
     return total
+
+
+def _read_common_agent_contract() -> str:
+    if COMMON_AGENT_SOURCE.is_file():
+        return COMMON_AGENT_SOURCE.read_text(encoding="utf-8", errors="replace")
+    return ""
 
 
 def _read_agent_definition(phase: str) -> str:
@@ -222,6 +229,7 @@ async def _run_agent(*, phase: str, phase_name: str, repository: Path, phase_int
     else:
         raise AgentRunnerError(f"Unsupported provider '{provider}'. Supported providers are: openrouter, openai")
 
+    common_agent_contract = _read_common_agent_contract()
     agent_definition = _read_agent_definition(phase)
     skill = _read_skill(phase)
     handoff = ""
@@ -246,13 +254,13 @@ If the repository evidence does not justify three material recommendations, prov
 INVESTIGATION BUDGET
 You have a finite investigation budget defined by the runner. Prioritize high-value evidence gathering early. As the remaining budget becomes small, stop broad exploration and transition to verification and synthesis. On the final available turn, produce the best-supported artifact possible rather than continuing investigation. Never invent missing evidence; mark it unknown or unverified."""
 
-    instructions = "\n\n".join(part for part in [common_instructions, agent_definition, f"Phase methodology:\n{skill}" if skill else "", phase_intelligence, handoff] if part)
+    instructions = "\n\n".join(part for part in [common_instructions, common_agent_contract, agent_definition, f"Phase methodology:\n{skill}" if skill else "", phase_intelligence, handoff] if part)
     client = AsyncOpenAI(base_url=base_url, api_key=api_key.strip())
     agent = Agent(name=f"SDLC {phase_name}", instructions=instructions, model=OpenAIChatCompletionsModel(model=model.strip(), openai_client=client), tools=_build_tools(repository))
     trace_id = uuid.uuid4().hex[:12]
     hooks = AgentDiagnosticsHooks(trace_id, phase)
     started = time.perf_counter()
-    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d agent_definition_chars=%d skill_chars=%d max_turns=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(agent_definition), len(skill), settings.phase_agent_max_turns)
+    logger.warning("AGENT_DIAG start trace_id=%s phase=%s model=%s provider=%s repository=%s intelligence_chars=%d common_agent_contract_chars=%d agent_definition_chars=%d skill_chars=%d max_turns=%d", trace_id, phase, model, provider_name, repository, len(phase_intelligence), len(common_agent_contract), len(agent_definition), len(skill), settings.phase_agent_max_turns)
     try:
         if run_control and run_control.is_cancelled():
             raise RunCancelled("Analysis stopped by the user.")
