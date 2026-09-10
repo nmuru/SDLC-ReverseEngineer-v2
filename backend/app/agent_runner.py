@@ -25,9 +25,19 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 AGENTS_SOURCE = PROJECT_ROOT / ".agents" / "agents"
 SKILLS_SOURCE = PROJECT_ROOT / ".agents" / "skills"
 
-if settings.openai_tracing_api_key:
-    set_tracing_export_api_key(settings.openai_tracing_api_key)
+logger.info(
+    "OpenAI tracing key loaded: %s",
+    bool(settings.openai_api_key),
+)
+
+logger.info("PROJECT_ROOT=%s", PROJECT_ROOT)
+logger.info("OPENAI_API_KEY loaded=%s", bool(settings.openai_api_key))
+logger.info("Current working directory=%s", Path.cwd())
+
+if settings.openai_api_key:
+    set_tracing_export_api_key(settings.openai_api_key)
     logger.info("OpenAI Agents tracing export is enabled.")
+     
 
 
 class AgentRunnerError(RuntimeError):
