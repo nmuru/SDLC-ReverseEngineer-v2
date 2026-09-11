@@ -567,7 +567,13 @@ Use the appropriate conceptual form.
 
 For a business application:
 
-**The repository appears to exist to address [business or operational need] by enabling [core capability or workflow], producing [intended organizational outcome] for [beneficiary].**
+**The business purpose is to address [business or operational need] by enabling [core capability or workflow], producing [intended organizational outcome] for [beneficiary].**
+
+For an enterprise or business application, the final Business Purpose statement should be expressed primarily in business terms: the business need, problem, opportunity, or objective; who or what in the business benefits; and the outcome the software enables. Describe technology only to the extent necessary to explain how the business need is addressed.
+
+The phrase "business purpose" should not be reduced to a description of what the software technically does. Move from the observable capability to the underlying business need and outcome. For example, "provides an online storefront" is a capability; the business purpose may be to give businesses a cost-effective and practical way to establish an online sales channel, when the repository evidence supports that interpretation.
+
+For repositories that are not enterprise or business applications, do not force a business interpretation. Use the appropriate purpose model below and describe the motivating technical, operational, research, educational, demonstrator, developer, or other objective instead.
 
 For infrastructure or developer software:
 
@@ -700,7 +706,7 @@ If these conditions cannot be satisfied because the repository is incomplete or 
 
 ## Output expectations
 
-Return a professional, concise but insightful Business Purpose analysis.
+Return a professional, concise but insightful Business Purpose analysis. The reasoning and conclusions must be evidence-based, but the final document does not need to reproduce the supporting evidence or include an evidence section unless specifically required by the phase structure.
 
 Do not reproduce the investigation process.
 

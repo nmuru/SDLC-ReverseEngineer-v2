@@ -87,6 +87,6 @@ Do not read every file or repeat repository-wide discovery already represented i
 
 Produce the complete professional Business Purpose documentation required by `.agents/skills/business-purpose/SKILL.md`.
 
-The final output must focus on the software's actual purpose and the evidence supporting that conclusion. It must not describe the agent, model, prompts, tools, skill loading, deterministic intelligence collection, token usage, or reverse-engineering execution process.
+The final output must focus on the software's actual purpose and conclusions derived through evidence-based reasoning. The document does not need to reproduce the supporting evidence or include an evidence section unless specifically required by the phase structure. It must not describe the agent, model, prompts, tools, skill loading, deterministic intelligence collection, token usage, or reverse-engineering execution process.
 
 Before finalizing, ensure that the purpose model, concrete evidence, representative meaningful workflow, beneficiaries or audiences, capability-to-need relationship, implementation support, certainty, material contradictions or gaps, and relevant unknowns are addressed according to the phase skill.
