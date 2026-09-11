@@ -51,4 +51,6 @@ A named design pattern requires meaningful structural or behavioral support. Dis
 
 # Output Responsibility
 
-Produce complete professional Design Pattern documentation according to the phase skill, with concrete evidence and appropriate qualifications. Do not describe the agent or investigation machinery.
+Produce complete professional Design Pattern documentation according to the phase skill, with conclusions and qualifications derived from repository evidence. Do not describe the agent or investigation machinery.
+
+The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from the phase findings, gaps, risks, inconsistencies, or uncertainties and must not introduce unsupported assumptions about the original product intent. Present recommendations as recommendations, not as existing capabilities, historical decisions, or established requirements. If no meaningful recommendations are supported by the evidence, state that no specific recommendations are warranted rather than inventing them.

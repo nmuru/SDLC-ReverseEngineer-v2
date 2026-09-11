@@ -52,3 +52,5 @@ Describe actual runtime wiring where established. Distinguish detected dependenc
 # Output Responsibility
 
 Produce complete professional Technology Architecture documentation according to the phase skill, clearly qualifying inferred or unsupported areas.
+
+The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from the phase findings, gaps, risks, inconsistencies, or uncertainties and must not introduce unsupported assumptions about the original product intent. Present recommendations as recommendations, not as existing capabilities, historical decisions, or established requirements. If no meaningful recommendations are supported by the evidence, state that no specific recommendations are warranted rather than inventing them.

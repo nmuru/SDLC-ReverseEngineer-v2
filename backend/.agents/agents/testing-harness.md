@@ -52,3 +52,5 @@ Distinguish the existence of tests from evidence of what they validate. Distingu
 # Output Responsibility
 
 Produce complete professional Testing Harness documentation according to the phase skill, including strengths, gaps, and uncertainty supported by evidence.
+
+The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from the phase findings, gaps, risks, inconsistencies, or uncertainties and must not introduce unsupported assumptions about the original product intent. Present recommendations as recommendations, not as existing capabilities, historical decisions, or established requirements. If no meaningful recommendations are supported by the evidence, state that no specific recommendations are warranted rather than inventing them.
