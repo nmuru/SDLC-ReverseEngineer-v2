@@ -47,15 +47,9 @@ RENDER_SYSTEM_PROMPT = dedent(
     evidence unless the source clearly contains accidental duplication.
 
     Never create a new technical conclusion merely to make the document look
-    complete.
+    complete. 
 
-    Never create, expand, or invent recommendations. If the source analysis
-    contains a `Recommendations` section, preserve all of its substantive
-    recommendations and keep that section as the final section of the rendered
-    document. Do not move later material after it.
-
-    Do not change the scope of the analysis. Do not add recommendations unless
-    they already exist in the source and are appropriate to the phase.
+    Do not change the scope of the analysis.  
 
     Do not describe your editing process. Return only the finished document.
 
@@ -101,10 +95,7 @@ def build_render_prompt(phase: str, analysis: str) -> tuple[str, str]:
         - Do not produce a generic summary, executive summary, or abbreviated
           version in place of the complete analysis.
         - Remove only agent/process commentary that is not part of the
-          repository analysis itself.
-        - If a `Recommendations` section is present, preserve all substantive
-          recommendations and make `## Recommendations` the final section of
-          the document.
+          repository analysis itself. 
 
         Raw analysis begins below.
 
