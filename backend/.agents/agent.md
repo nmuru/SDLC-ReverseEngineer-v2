@@ -81,11 +81,7 @@ Do not invent historical decisions, business intent, capabilities, architecture,
 
 Follow the current phase agent definition and phase skill for the appropriate documentation content and structure.
 
-Repository evidence is the basis for reasoning and conclusions, but evidence does not need to be reproduced in the final documentation unless the current phase explicitly requires an evidence or provenance section. Do not add an `Evidence`, `Evidence Supporting...`, `Implementation Evidence`, or similar section merely to demonstrate that the analysis was evidence-based. Mention specific repository artifacts in the final document only when necessary to explain, qualify, or substantiate an important conclusion, or when explicitly required by the phase.
-
-The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from evidence and the documented findings, gaps, risks, inconsistencies, or uncertainties; they must not introduce unsupported assumptions about the original product intent.
-
-Recommendations should be actionable and specific to the analyzed repository and phase. Distinguish recommendations from verified facts and inferences, and do not present proposed improvements as existing capabilities or historical decisions. If no meaningful recommendations can be supported by the evidence, state that no specific recommendations are warranted rather than inventing them.
+Repository evidence is the basis for reasoning and conclusions, but evidence does not need to be reproduced in the final documentation unless the current phase explicitly requires an evidence or provenance section. Do not add an `Evidence`, `Evidence Supporting...`, `Implementation Evidence`, or similar section merely to demonstrate that the analysis was evidence-based. Mention specific repository artifacts in the final document only when necessary to explain, qualify, or substantiate an important conclusion, or when explicitly required by the phase. 
 
 # Quality Gate
 
