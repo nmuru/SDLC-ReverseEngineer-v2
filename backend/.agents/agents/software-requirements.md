@@ -51,6 +51,4 @@ Requirements describe what the implemented system does or demonstrably constrain
 
 # Output Responsibility
 
-Produce complete professional Software Requirements documentation according to the phase skill, with conclusions derived from repository evidence and explicit uncertainty where appropriate. Do not require a separate evidence or traceability section merely to demonstrate that the analysis was evidence-based.
-
-The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from the phase findings, gaps, risks, inconsistencies, or uncertainties and must not introduce unsupported assumptions about the original product intent. Present recommendations as recommendations, not as existing capabilities, historical decisions, or established requirements. If no meaningful recommendations are supported by the evidence, state that no specific recommendations are warranted rather than inventing them.
+Produce complete professional Software Requirements documentation according to the phase skill, with traceable evidence and explicit uncertainty where appropriate.

@@ -52,5 +52,3 @@ Describe implementation only where supported by source evidence. Do not turn con
 # Output Responsibility
 
 Produce complete professional Implementation Detail documentation according to the phase skill, emphasizing concrete mechanisms rather than generic technology descriptions.
-
-The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from the phase findings, gaps, risks, inconsistencies, or uncertainties and must not introduce unsupported assumptions about the original product intent. Present recommendations as recommendations, not as existing capabilities, historical decisions, or established requirements. If no meaningful recommendations are supported by the evidence, state that no specific recommendations are warranted rather than inventing them.

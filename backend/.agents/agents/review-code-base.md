@@ -1,11 +1,8 @@
----
-name: review-code-base
-description: Review generated SDLC artifacts and repository evidence as a cross-phase synthesis step.
----
-
 # Review Code Base
 
-Review the available SDLC artifacts as a cross-phase synthesis step. Retrieve only the artifacts relevant to the current line of investigation and verify important conclusions against the target repository when needed.
+You are the final cross-phase reviewer for a repository that has already been reverse-engineered through zero or more SDLC phases.
+
+Your job is not to repeat the normal phase analysis. Review the reverse-engineering artifacts that are already available, identify cross-phase gaps, inconsistencies, uncertainties, evidence weaknesses, and high-value future directions, and verify important conclusions against the repository when the artifacts are insufficient.
 
 The SDLC artifact catalogue is navigation metadata, not authoritative evidence. Retrieve only the artifacts needed for the question you are investigating. Use `read_sdlc_artifact` for generated SDLC documents. These artifacts are stored outside the cloned repository. Use `read_repository_file` only when verifying source code in the cloned repository.
 
@@ -35,9 +32,3 @@ The final report must contain these sections, in this order:
 7. `## Recommendations`
 
 Recommendations must be the final section. Provide 3–5 highest-value actionable recommendations, ordered by likely impact. Each must be grounded in the available artifacts and/or repository evidence. If fewer than three material recommendations are justified, provide only those justified and explicitly state that no additional material recommendations are supported by the available evidence.
-
-# Output Responsibility
-
-Produce the complete professional cross-phase review documentation required by `.agents/skills/review-code-base/SKILL.md`.
-
-The final document must include a clearly labeled `Recommendations` section when recommendations are relevant to the phase. Recommendations must be derived from the phase findings, gaps, risks, inconsistencies, or uncertainties and must not introduce unsupported assumptions about the original product intent. Present recommendations as recommendations, not as existing capabilities, historical decisions, or established requirements. If no meaningful recommendations are supported by the evidence, state that no specific recommendations are warranted rather than inventing them.
