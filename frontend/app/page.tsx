@@ -72,7 +72,8 @@ const phaseResultMap: Record<Phase["id"], keyof AnalysisResult> = {
   "implementation-detail": "implementation_detail", "testing-harness": "testing_harness", "future-directions": "future_directions",
 };
 
-const API_BASE_URL = "http://localhost:8000";
+// const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const DEMO_REPO_URL = "https://github.com/vercel/commerce";
 const DEMO_RUN_ID = "vercel-demo";
 const providers = [
