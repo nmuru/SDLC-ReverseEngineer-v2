@@ -629,7 +629,7 @@ Do not treat any of the following as sufficient evidence by themselves:
 
 For each major conclusion, identify the relevant repository artifacts.
 
-## Certainty classification
+## Internal Reasoning Classification
 
 Use calibrated conclusions.
 
@@ -706,11 +706,15 @@ If these conditions cannot be satisfied because the repository is incomplete or 
 
 ## Output expectations
 
-Return a professional, concise but insightful Business Purpose analysis. The reasoning and conclusions must be evidence-based, but the final document does not need to reproduce the supporting evidence or include an evidence section unless specifically required by the phase structure.
+### Output boundary
+The certainty and support distinctions used during investigation are internal reasoning controls. Do not reproduce them as labels, metadata, evidence sections, or confidence statements in the normal Business Purpose document. Present the resulting purpose model and conclusions directly. The document may describe material limitations or open questions when they are necessary for an accurate understanding.
+
+
+Return a professional, comprehensive but focused Business Purpose analysis. The depth should be proportional to the complexity and ambiguity of the repository; do not artificially shorten the document. The reasoning and conclusions must be grounded in repository analysis, but the final document should present the resulting purpose model directly rather than reproducing the investigation trail or internal confidence classifications.
 
 Do not reproduce the investigation process.
 
-Synthesize the evidence into a coherent explanation of the repository's motivating purpose.
+Synthesize the repository findings into a coherent explanation of the repository's motivating purpose.
 
 Begin by identifying the most appropriate purpose model:
 
@@ -727,7 +731,7 @@ Begin by identifying the most appropriate purpose model:
 * reference implementation
 * mixed or unknown purpose
 
-Then explain the strongest evidence-backed answer to:
+Then explain the strongest repository-supported answer to:
 
 **"Why was this software created?"**
 

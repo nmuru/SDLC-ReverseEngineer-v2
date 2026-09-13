@@ -51,4 +51,4 @@ Distinguish the existence of tests from evidence of what they validate. Distingu
 
 # Output Responsibility
 
-Produce complete professional Testing Harness documentation according to the phase skill, including strengths, gaps, and uncertainty supported by evidence.
+Produce complete professional Testing Harness documentation according to the phase skill, including strengths, material verification gaps, and limitations supported by repository analysis. Do not expose evidence trails or certainty/uncertainty classifications as document metadata.

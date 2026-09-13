@@ -330,7 +330,7 @@ Use a practical classification for important features and requirements:
 
 **Harness-only:** The test validates the test setup or a mocked boundary rather than the real behavior.
 
-**Not evidenced:** No credible test was found.
+**No credible test identified:** No credible test was found. Treat this as an internal assessment; do not use the phrase as a final-document status label.
 
 Use this classification rather than inventing numerical coverage where the repository does not provide it.
 
@@ -406,7 +406,11 @@ Before completing this phase, verify:
 
 ## Output Expectations
 
-Return a professional dossier-quality Testing Harness analysis.
+### Output boundary
+The repository-analysis and classification mechanisms used to assess tests are internal reasoning controls. Do not reproduce evidence trails, certainty/confidence labels, or source-by-source investigation notes in the final Testing Harness document. Present the resulting testing capability, strengths, and gaps directly.
+
+
+Return a professional, sufficiently detailed Testing Harness analysis. Cover the testing mechanisms and meaningful verification gaps needed for comprehensive understanding without artificially constraining the document length.
 
 Explain:
 
@@ -423,7 +427,7 @@ Explain:
 
 Where useful, include a concise test architecture or verification-flow diagram in Mermaid syntax.
 
-Distinguish what is directly tested from what is only indirectly tested or not evidenced.
+Distinguish directly tested behavior from indirectly tested behavior, simulated boundaries, and areas that the current harness does not exercise. Do not expose internal evidence or confidence classifications.
 
 Do not recommend a new testing strategy in this phase. Describe the existing harness and its actual verification capability.
 

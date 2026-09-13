@@ -237,7 +237,7 @@ Prioritize directions using factors such as:
 
 - impact on the core business purpose
 - severity of the current limitation
-- evidence strength
+- strength of current-state support
 - implementation feasibility
 - architectural leverage
 - risk reduction
@@ -257,13 +257,13 @@ Do not assign priority merely because an item is technically interesting.
 
 For each significant future direction, explain:
 
-- Current evidence
+- Current-state basis
 - Limitation or opportunity
 - Proposed direction
 - Expected benefit
 - Dependencies or prerequisites
 - Priority
-- Confidence
+- Recommendation rationale
 
 The proposed direction should be concrete enough to guide future engineering work but should not become a detailed implementation plan.
 
@@ -275,7 +275,7 @@ over:
 
 "Use Celery and Redis."
 
-The first expresses the direction and the evidence-based motivation. The second prematurely selects implementation technology without establishing that it is necessary.
+The first expresses the direction and the current-state motivation. The second prematurely selects implementation technology without establishing that it is necessary.
 
 ## Evidence discipline
 
@@ -362,15 +362,15 @@ Before completing this phase, verify:
 
 ## Output Expectations
 
-Return a professional dossier-quality Future Directions analysis.
+Return a professional, sufficiently detailed Future Directions analysis. Depth should follow the number and significance of credible directions; do not artificially constrain the document length.
 
 Begin with a concise synthesis of the most important current limitations and opportunities.
 
-Then present the highest-value future directions, prioritized by impact, urgency, evidence strength, and feasibility.
+Then present the highest-value future directions, prioritized by impact, urgency, strength of the current-state rationale, and feasibility.
 
-For each major direction, explain the current evidence, the limitation or opportunity, the proposed evolution, expected benefit, prerequisites, priority, and confidence.
+For each major direction, explain the current-state limitation or opportunity, the proposed evolution, expected benefit, prerequisites, priority, and rationale for the recommendation.
 
-Distinguish evidence-backed recommendations from longer-term exploratory possibilities.
+Distinguish recommendations strongly grounded in the current implementation from longer-term exploratory possibilities. Do not expose internal evidence-strength or confidence labels.
 
 Where useful, provide a phased evolution narrative showing what should logically come first and what depends on later scale or capability.
 

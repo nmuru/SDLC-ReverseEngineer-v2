@@ -23,4 +23,10 @@ A missing artifact is itself a fact about the current review coverage. Do not ma
 
 Keep source evidence and inference separate. When verification changes the interpretation of a prior phase, state the discrepancy explicitly rather than silently correcting the earlier document.
 
-The final Recommendations section must be evidence-backed and final.
+The final Recommendations section must be grounded in the reviewed artifacts and targeted repository verification, and must be final.
+
+The investigation should use source evidence and cross-phase comparison internally, but the final review document should not reproduce the evidence trail or internal confidence/certainty classifications. Present contradictions, gaps, and recommendations directly and explain their practical impact in natural language.
+
+## Output Depth
+
+Produce a sufficiently detailed cross-phase review to make material contradictions, omissions, duplicated recommendations, and unresolved design or implementation issues understandable. Do not artificially constrain the document to a fixed page, word, or section count. Continue targeted investigation when it could materially change the review conclusions, while avoiding unsupported additions.

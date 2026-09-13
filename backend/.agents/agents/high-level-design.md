@@ -51,4 +51,4 @@ Prefer actual structure and runtime wiring over conventional architecture. Disti
 
 # Output Responsibility
 
-Produce complete professional High-Level Design documentation according to the phase skill, including appropriate diagrams and evidence.
+Produce complete professional High-Level Design documentation according to the phase skill, including appropriate diagrams and relationships established through repository analysis. Do not expose the investigation trail or internal confidence classifications in the final document.

@@ -258,7 +258,7 @@ Do not treat the following as sufficient by themselves:
 * isolated symbol name
 * generic framework conventions
 
-## Certainty Classification
+## Internal Scope Classification
 
 Use calibrated language.
 
@@ -276,7 +276,12 @@ Use calibrated language.
 
 ## Output Expectations
 
-The final document should normally cover:
+### Output boundary
+The evidence and classification mechanisms used during investigation are internal reasoning controls. Do not create Scope Evidence, certainty, confidence, verified/inferred/unverified, or similar metadata sections in the final document. Present the resulting scope directly, and describe material limitations or open questions naturally where they affect the reader's understanding.
+
+
+The final document should normally cover the following areas, with depth proportional to the system's actual scope and complexity. Do not artificially constrain the document to a fixed page or word count:
+
 
 1. Scope Summary
 2. System Boundary
@@ -289,4 +294,4 @@ The final document should normally cover:
 9. Scope Uncertainties and Unknowns
 10. Recommendations
 
-The Recommendations section is a cross-cutting output contract and must be the final section. Recommendations must be evidence-backed and actionable, not generic engineering advice.
+The Recommendations section is a cross-cutting output contract and must be the final section. Recommendations must be grounded in the current implementation and actionable, not generic engineering advice.
