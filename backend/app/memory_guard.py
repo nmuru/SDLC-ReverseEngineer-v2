@@ -59,7 +59,7 @@ def _safe_reserve_bytes(limit: int | None, minimum_mb: int = 256) -> int:
     return max(minimum_mb * 1024 * 1024, int(limit * 0.20))
 
 
-def ensure_memory_available(min_available_mb: int = 256, context: str = "analysis") -> None:
+def ensure_memory_available(min_available_mb: int = 128, context: str = "analysis") -> None:
     available, _, limit = memory_snapshot()
     required = max(min_available_mb * 1024 * 1024, _safe_reserve_bytes(limit, min_available_mb))
     if available < required:
@@ -70,7 +70,7 @@ def ensure_memory_available(min_available_mb: int = 256, context: str = "analysi
         )
 
 
-def memory_pressure(critical_available_mb: int = 128) -> bool:
+def memory_pressure(critical_available_mb: int = 64) -> bool:
     available, used, limit = memory_snapshot()
     reserve = _safe_reserve_bytes(limit, critical_available_mb)
     percent = (used / limit * 100.0) if limit else 0.0
