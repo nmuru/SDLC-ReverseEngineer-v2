@@ -252,7 +252,7 @@ export default function Home() {
   const activePhaseDefinition = phases.find((phase) => phase.id === activePhase) ?? phases[0];
   const activeResultKey = phaseResultMap[activePhaseDefinition.id];
   const activeResult = analysisResult && activeResultKey ? analysisResult[activeResultKey] : "";
-  const denominator = selectedPhases.length || phases.length;
+  const denominator = phases.length;
   const progressText = `${completedPhases.length} of ${denominator} phases have completed. You can read completed phases while the remaining phases continue running.`;
 
   return <div className="app-shell">

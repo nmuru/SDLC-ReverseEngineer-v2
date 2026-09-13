@@ -4,7 +4,7 @@ import { useEffect } from "react";
 
 const API_BASE_URL = "http://localhost:8000";
 const STORAGE_KEY = "reverse-engineer-sdlc:v1-workspace";
-const TOTAL_PHASES = 11;
+const TOTAL_PHASES = 12;
 
 type Failure = { phase?: string; phase_name?: string; error_type?: string; error?: string };
 
