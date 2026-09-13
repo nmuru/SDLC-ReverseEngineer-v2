@@ -1,3 +1,4 @@
+
 "use client";
 
 import { FormEvent, useEffect, useId, useRef, useState } from "react";
@@ -210,30 +211,167 @@ export default function Home() {
     setCompletedPhases((previous) => isDemo ? [] : previous);
     setSelectedPhases(phasesToRun);
     setAnalysisResult(isDemo ? emptyResult(repoUrl) : (analysisResult ?? emptyResult(repoUrl)));
+
     try {
-      const response = await fetch(`${API_BASE_URL}/api/analyze`, { method: "POST", headers: { Accept: "text/event-stream", "Content-Type": "application/json" }, body: JSON.stringify({ repo_url: repoUrl, selected_phases: phasesToRun, work_id: nextRunId, provider, model, api_key: apiKey }) });
-      if (!response.ok) { let message = "Analysis failed."; try { const data = await response.json(); if (typeof data?.detail === "string") message = data.detail; } catch {} throw new Error(message); }
-      if (!response.body) throw new Error("The analysis stream was not available.");
-      const reader = response.body.getReader(); const decoder = new TextDecoder(); let buffer = "";
+      const response = await fetch(`${API_BASE_URL}/api/analyze`, {
+        method: "POST",
+        headers: {
+          Accept: "text/event-stream",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          repo_url: repoUrl,
+          selected_phases: phasesToRun,
+          work_id: nextRunId,
+          provider,
+          model,
+          api_key: apiKey,
+        }),
+      });
+
+      if (!response.ok) {
+        let message = "Analysis failed.";
+
+        try {
+          const data = await response.json();
+
+          if (typeof data?.detail === "string") {
+            message = data.detail;
+          }
+        } catch {}
+
+        throw new Error(message);
+      }
+
+      if (!response.body) {
+        throw new Error("The analysis stream was not available.");
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
       while (true) {
-        const { value, done } = await reader.read(); if (done) break;
-        buffer += decoder.decode(value, { stream: true }); const events = buffer.split("\n\n"); buffer = events.pop() ?? "";
+        const { value, done } = await reader.read();
+
+        if (done) {
+          break;
+        }
+
+        buffer += decoder.decode(value, { stream: true });
+
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+
         for (const eventBlock of events) {
-          const dataLines = eventBlock.split("\n").filter((line) => line.startsWith("data:")).map((line) => line.slice(5).trim()); if (!dataLines.length) continue;
-          let eventData: AnalysisEvent; try { eventData = JSON.parse(dataLines.join("\n")) as AnalysisEvent; } catch { continue; }
+          const dataLines = eventBlock
+            .split("\n")
+            .filter((line) => line.startsWith("data:"))
+            .map((line) => line.slice(5).trim());
+
+          if (!dataLines.length) {
+            continue;
+          }
+
+          let eventData: AnalysisEvent;
+
+          try {
+            eventData = JSON.parse(dataLines.join("\n")) as AnalysisEvent;
+          } catch {
+            continue;
+          }
+
           if (eventData.type === "phase_completed") {
-            setRunId(eventData.run_id); setProvenance(eventData.provenance ? { model: eventData.provenance.model } : { model }); setCompletionMessages((previous) => previous.includes(eventData.phase_name) ? previous : [...previous, `${eventData.phase_name} phase completed`]);
-            const resultKey = phaseResultMap[eventData.phase as Phase["id"]];
-            if (resultKey) { setAnalysisResult((previous) => ({ ...(previous ?? emptyResult(repoUrl)), repo_url: repoUrl, [resultKey]: eventData.raw_analysis })); setCompletedPhases((previous) => previous.includes(eventData.phase) ? previous : [...previous, eventData.phase]); setSelectedPhases((previous) => previous.filter((id) => id !== eventData.phase)); setActivePhase(eventData.phase); }
+            setRunId(eventData.run_id);
+
+            setProvenance(
+              eventData.provenance
+                ? { model: eventData.provenance.model }
+                : { model }
+            );
+
+            setCompletionMessages((previous) =>
+              previous.includes(eventData.phase_name)
+                ? previous
+                : [...previous, `${eventData.phase_name} phase completed`]
+            );
+
+            const resultKey =
+              phaseResultMap[eventData.phase as Phase["id"]];
+
+            if (resultKey) {
+              setAnalysisResult((previous) => ({
+                ...(previous ?? emptyResult(repoUrl)),
+                repo_url: repoUrl,
+                [resultKey]: eventData.raw_analysis,
+              }));
+
+              setCompletedPhases((previous) =>
+                previous.includes(eventData.phase)
+                  ? previous
+                  : [...previous, eventData.phase]
+              );
+
+              setSelectedPhases((previous) =>
+                previous.filter((id) => id !== eventData.phase)
+              );
+
+              setActivePhase(eventData.phase);
+            }
           } else if (eventData.type === "analysis_completed") {
-            setRunId(eventData.run_id); setAnalysisComplete(true); setLoading(false); setStopping(false); setStopped(false); setFailedPhases((eventData.failed_phases ?? []).map((failure) => failure.phase)); if ((eventData.failed_phases ?? []).length) setError(`${eventData.failed_phases.length} selected phase${eventData.failed_phases.length === 1 ? "" : "s"} could not be completed.`);
+            const failures = eventData.failed_phases ?? [];
+
+            setRunId(eventData.run_id);
+            setAnalysisComplete(true);
+            setLoading(false);
+            setStopping(false);
+            setStopped(false);
+            setFailedPhases(
+              failures.map((failure) => failure.phase)
+            );
+
+            if (failures.length) {
+              setError(
+                `${failures.length} selected phase${
+                  failures.length === 1 ? "" : "s"
+                } could not be completed.`
+              );
+            }
           } else if (eventData.type === "analysis_cancelled") {
-            setRunId(eventData.run_id); setAnalysisComplete(false); setLoading(false); setStopping(false); setStopped(true); setCompletedPhases(eventData.completed_phases ?? []); setFailedPhases((eventData.failed_phases ?? []).map((failure) => failure.phase)); setSelectedPhases((previous) => previous.filter((id) => !(eventData.completed_phases ?? []).includes(id)));
-          } else if (eventData.type === "analysis_failed") { setError(eventData.error); setAnalysisComplete(false); setLoading(false); setStopping(false); }
+            setRunId(eventData.run_id);
+            setAnalysisComplete(false);
+            setLoading(false);
+            setStopping(false);
+            setStopped(true);
+            setCompletedPhases(eventData.completed_phases ?? []);
+            setFailedPhases(
+              (eventData.failed_phases ?? []).map(
+                (failure) => failure.phase
+              )
+            );
+            setSelectedPhases((previous) =>
+              previous.filter(
+                (id) =>
+                  !(eventData.completed_phases ?? []).includes(id)
+              )
+            );
+          } else if (eventData.type === "analysis_failed") {
+            setError(eventData.error);
+            setAnalysisComplete(false);
+            setLoading(false);
+            setStopping(false);
+          }
         }
       }
-    } catch (err) { if (!stopped) { setError(err instanceof Error ? err.message : "Analysis failed."); setAnalysisComplete(false); setLoading(false); } }
-    finally { continuationStartingRef.current = false; }
+    } catch (err) {
+      if (!stopped) {
+        setError(err instanceof Error ? err.message : "Analysis failed.");
+        setAnalysisComplete(false);
+        setLoading(false);
+      }
+    } finally {
+      continuationStartingRef.current = false;
+    }
   }
 
   async function stopAnalysis() {
