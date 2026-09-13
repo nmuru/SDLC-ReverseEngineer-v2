@@ -341,7 +341,7 @@ Identify material differences between intended architecture and implemented arch
 
 If a documented component cannot be found, mark it as unverified rather than placing it in the verified architecture.
 
-## Architecture classification
+## Internal Architecture Classification
 
 Classify architectural elements according to evidence:
 
@@ -353,7 +353,7 @@ Classify architectural elements according to evidence:
 
 **Apparently unused/legacy:** The artifact exists but no credible active path to it was found.
 
-Use these classifications in the narrative and when discussing uncertain diagram elements.
+Use these classifications only during internal reasoning. Do not reproduce the labels in the final document; describe material limitations or open questions in natural language.
 
 ## Technology selection rules
 
@@ -444,11 +444,15 @@ Before completing this phase, verify:
 
 ## Required Output
 
-Return a professional dossier-quality Technology Architecture analysis.
+### Output boundary
+Repository support and architecture classifications are internal reasoning mechanisms. Do not reproduce evidence trails, certainty/confidence labels, or source-by-source investigation notes in the final architecture document. Present the resulting architecture directly and use natural-language qualifications for material limitations or open questions.
+
+
+Return a professional, sufficiently detailed Technology Architecture analysis. Cover all materially significant runtime components, boundaries, flows, state ownership, and deployment context without artificially constraining the document length.
 
 The output MUST include a rendered or renderable architecture diagram. Prefer Mermaid flowchart syntax when the response format supports it.
 
-The analysis should explain the diagram and identify the evidence supporting its major components and relationships.
+The analysis should explain the diagram and the major components and relationships it represents. Do not reproduce the investigation trail or attach evidence/certainty metadata to architecture elements.
 
 For each significant architectural component, describe:
 
@@ -462,7 +466,7 @@ For each significant architectural component, describe:
 
 Then explain the major communication and data flows.
 
-Distinguish verified architecture from inferred or unverified architecture.
+Present the architecture directly. Where the implementation does not establish an architectural detail, describe the limitation or open question in natural language rather than using verification-status labels.
 
 Do not provide detailed class-level or function-level design except where necessary to prove an architectural relationship.
 
@@ -470,4 +474,4 @@ Do not recommend architectural improvements in this phase. Future improvements b
 
 The final analysis should allow a reader to answer:
 
-"What is the actual technology architecture of this system, what are its major runtime components and boundaries, how do they communicate, where does state live, and what evidence proves the architecture?"
+"What is the actual technology architecture of this system, what are its major runtime components and boundaries, how do they communicate, where does state live, and what constraints or implementation details establish that architecture?"

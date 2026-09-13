@@ -51,4 +51,4 @@ Trace concrete implementation relationships. Do not manufacture internal behavio
 
 # Output Responsibility
 
-Produce complete professional Low-Level Design documentation according to the phase skill, with precise evidence and diagrams where required.
+Produce complete professional Low-Level Design documentation according to the phase skill, with precise relationships and diagrams where required. Repository analysis should establish those details internally without becoming an evidence or confidence report.

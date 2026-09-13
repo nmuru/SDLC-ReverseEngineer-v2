@@ -5,11 +5,12 @@ class Settings(BaseSettings):
     model_provider: str = "openrouter"
     openai_model: str = "openrouter/free"
     openrouter_api_key: str | None = None
+    openai_api_key: str | None = None
     allowed_origins: str = "http://localhost:3000"
     phases_per_batch: int = 1
     batch_mode: str = "parallel"
     analysis_results_dir: str = "output-content"
-    runtime_mode: str = "evaluation"
+    runtime_mode: str = "production"
     resource_diagnostics_enabled: bool = True
     resource_diagnostics_interval_seconds: float = 2.0
     resource_diagnostics_dir: str = "resource-diagnostics"

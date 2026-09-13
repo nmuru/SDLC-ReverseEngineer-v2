@@ -780,7 +780,7 @@ For a deployment diagram, distinguish repository artifacts from infrastructure o
 
 Do not create a diagram merely because diagrams are expected.
 
-## Certainty classification
+## Internal Reasoning Classification
 
 Use the following classifications when evidence strength matters.
 
@@ -897,7 +897,11 @@ Before completing this phase, verify:
 
 ## Output expectations
 
-Return a professional dossier-quality Implementation Detail analysis.
+### Output boundary
+The evidence model and internal classifications are reasoning controls, not normal document fields. Do not reproduce evidence trails, certainty labels, or source-by-source investigation notes in the final Implementation Detail document. Present the resulting implementation understanding directly and retain material limitations as natural-language qualifications.
+
+
+Return a professional, sufficiently detailed Implementation Detail analysis. Cover the material execution, build, configuration, lifecycle, deployment, and operational mechanisms needed for comprehensive understanding without artificially constraining the document length.
 
 Organize the result around the concrete lifecycle of the software.
 
@@ -905,13 +909,13 @@ Start with how the repository is invoked and how control enters the application.
 
 Then explain how configuration is loaded, dependencies are assembled, runtime components are initialized, and the system begins operating.
 
-Describe build, packaging, testing, containerization, deployment, and operational mechanisms where evidence exists.
+Describe build, packaging, testing, containerization, deployment, and operational mechanisms where the repository establishes them.
 
 Identify important commands, scripts, entry points, configuration flows, runtime processes, and lifecycle boundaries precisely.
 
 Include a focused Mermaid diagram when a startup sequence, process topology, build flow, deployment path, or configuration flow materially improves understanding.
 
-Use repository artifacts as evidence.
+Use repository artifacts to establish the implementation internally; present the resulting mechanisms directly in the final document.
 
 Do not reproduce large source files.
 
@@ -919,7 +923,7 @@ Do not recommend refactoring or redesign.
 
 Do not describe conventional framework behavior as a repository fact unless the implementation confirms it.
 
-Explicitly identify important gaps in repository evidence rather than filling them with assumptions.
+Explicitly identify important gaps in the documented understanding of the implementation rather than filling them with assumptions.
 
 The completed analysis should allow a reader to answer:
 

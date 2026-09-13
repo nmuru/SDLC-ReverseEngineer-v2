@@ -227,7 +227,11 @@ Before completing this phase, verify that:
 
 ## Output Expectations
 
-Return a professional dossier-quality Design Pattern analysis.
+### Output boundary
+Confidence and repository-support assessments are internal reasoning controls. Do not reproduce them as confidence labels, evidence annotations, or investigation notes in the final Design Pattern document. Present the resulting pattern analysis directly, with natural-language qualifications only where materially necessary.
+
+
+Return a professional, sufficiently detailed Design Pattern analysis. Cover all materially significant recurring structures and design approaches without artificially constraining the document length.
 
 Begin with a concise overview of the repository's overall pattern orientation.
 

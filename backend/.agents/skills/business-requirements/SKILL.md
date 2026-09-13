@@ -120,7 +120,7 @@ Do not mention:
 
 Each requirement should stand independently and express what is required, rather than how the repository currently accomplishes it.
 
-Where useful, group requirements by business capability or workflow, but preserve concise bullet-point form.
+Where useful, group requirements by business capability or workflow, using concise but sufficiently detailed bullet points. Do not omit important actors, outcomes, rules, constraints, or acceptance-relevant context merely to keep bullets short.
 
 Do not inflate the number of requirements by splitting one business need into trivial technical sub-requirements.
 
@@ -130,9 +130,9 @@ Every major requirement must be grounded in repository evidence.
 
 Use technical artifacts during the investigation to establish the requirement, but translate the final requirement into technology-agnostic business language.
 
-When evidence is weak, use calibrated language such as "the repository indicates" or "the available evidence suggests."
+When the business intent cannot be established cleanly, resolve the ambiguity during investigation and describe the resulting limitation or open question naturally rather than exposing internal support classifications.
 
-Do not present an inference as an explicitly verified business requirement.
+Do not present an unsupported interpretation as an established business requirement.
 
 ## Red flags
 
@@ -164,10 +164,17 @@ Before completing the phase, verify that:
 
 ## Output expectations
 
-Produce a professional Business Requirements analysis.
+Produce a professional, sufficiently detailed Business Requirements analysis. The depth should follow the complexity of the implemented system and should not be artificially constrained by page or word targets.
 
-The document should explain the business context and evidence coherently, but the Business Requirements chapter itself must present requirements as crisp, concise bullet points.
+The document should explain the business context coherently, while the Business Requirements chapter presents requirements clearly and directly. Use enough detail to preserve important business rules, actors, triggers, outcomes, constraints, and acceptance-relevant context; do not artificially compress substantive requirements into minimal bullets.
 
 The final result should enable a business stakeholder to understand what needs the solution is intended to satisfy without requiring knowledge of the technology used to implement it.
 
 The defining quality of this phase is that its requirements remain **technology agnostic**: the requirements should continue to make sense even if the software were redesigned, rewritten, or implemented using an entirely different technology stack.
+
+
+## Output boundary and depth
+
+Repository evidence and internal support classifications remain investigation mechanisms. They must not become evidence annotations, certainty/confidence labels, or source-trace sections in the normal Business Requirements document.
+
+Produce enough detail for a stakeholder to understand the business need and for downstream specification work to rely on the requirements. Do not artificially shorten the document to meet a fixed page or word count.

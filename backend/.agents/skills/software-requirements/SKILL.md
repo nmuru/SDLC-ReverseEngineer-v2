@@ -347,19 +347,34 @@ Better:
 
 The framework is an architectural implementation detail unless the repository explicitly establishes it as a constraint.
 
-## Evidence and Certainty
+## Internal Reasoning: Support and Certainty
 
-Use a practical certainty classification:
+Use repository analysis to determine whether a requirement is directly established, strongly implied, or insufficiently supported.
 
-**Verified requirement:** Directly stated or strongly established by executable behavior and supporting artifacts.
+Use these distinctions internally to:
+- establish whether behavior actually exists
+- distinguish implemented behavior from assumptions
+- resolve contradictions
+- determine how strongly a requirement can be stated
+- avoid inventing conventional requirements
 
-**Inferred requirement:** Not explicitly stated, but necessary or strongly implied by multiple implementation artifacts.
+Do not expose these internal classifications in the normal Requirements document.
 
-**Uncertain requirement:** Plausible interpretation with insufficient evidence to establish it confidently.
+Do not add:
+- Evidence
+- Evidence Supporting...
+- Implementation Evidence
+- Source Evidence
+- Provenance
+- Certainty
+- Confidence
+- Verified
+- Inferred
+- Uncertain
 
-Do not elevate uncertain requirements to verified requirements.
+as requirement metadata or standalone sections unless the user explicitly requests a traceability, audit, evidence, provenance, or gap-analysis report.
 
-Where documentation and implementation disagree, report both the stated requirement and the implemented behavior when the distinction matters.
+Where documentation and implementation disagree, resolve the difference during analysis and state the resulting requirement and material limitation directly, without exposing the internal classification scheme.
 
 ## Anti-patterns and Rationalizations
 
@@ -411,15 +426,19 @@ Before completing this phase, verify:
 
 ## Output Expectations
 
-Return a professional dossier-quality Requirements analysis.
+### Output boundary
+The evidence and certainty model is an internal reasoning mechanism. It must continue to guide investigation, contradiction resolution, and requirement formulation, but must not appear as requirement metadata or a separate evidence/certainty section in the normal Requirements document. Present the resulting requirements directly and comprehensively.
+
+
+Return a professional, sufficiently detailed Requirements analysis. Requirements should contain enough behavioral and constraint detail to support specification-driven development; do not artificially constrain the document to a fixed page or word count.
 
 Organize the result around meaningful functional, domain, interface, data, security, non-functional, and operational requirements as applicable to the repository.
 
-For each important requirement, provide enough context to explain what the system must do or satisfy, why the requirement is supported, and how certain the conclusion is.
+For each important requirement, provide enough context to explain what the system must do or satisfy, including relevant actors, triggers, inputs, preconditions, rules, constraints, outcomes, interfaces, and quality characteristics. State requirements directly rather than attaching evidence or certainty metadata.
 
-Do not turn the output into a code walkthrough. Source symbols and implementation details should be used as evidence rather than becoming the requirement itself.
+Do not turn the output into a code walkthrough. Source symbols and implementation details should inform the requirement formulation internally rather than becoming the requirement itself.
 
-Do not propose new requirements or redesign the system. If the repository appears to lack an important requirement, identify the absence or uncertainty rather than inventing the missing requirement.
+Do not propose new requirements or redesign the system. If the repository does not establish an important requirement, do not invent one; describe the resulting limitation or open question only when it materially affects understanding of the requirements.
 
 The final analysis should allow a reader to answer:
 

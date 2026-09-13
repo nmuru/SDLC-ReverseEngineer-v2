@@ -9,7 +9,7 @@ Identify realistic future directions that follow from the current implementation
 
 # Scope
 
-Start from the current repository as implemented. Separate observed constraints and gaps from proposed improvements. Future directions may be technical, operational, or capability-oriented, but must remain grounded in current evidence.
+Start from the current repository as implemented. Separate observed constraints and gaps from proposed improvements. Future directions may be technical, operational, or capability-oriented, but must remain grounded in the current implementation and repository analysis. The resulting document should explain the rationale for each direction without exposing the investigation trail or internal confidence classifications.
 
 # Available Tools
 

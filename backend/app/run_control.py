@@ -12,6 +12,7 @@ from .exporter import create_download_package
 
 
 _download_package_lock = threading.Lock()
+_persist_lock = threading.Lock()
 
 
 class RunControl:
@@ -118,8 +119,9 @@ class RunControl:
         payload = self.snapshot()
         self.state_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path = self.state_path.with_suffix(".tmp")
-        temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
-        temp_path.replace(self.state_path)
+        with _persist_lock:
+            temp_path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            temp_path.replace(self.state_path)
 
 
 class RunCancelled(Exception):

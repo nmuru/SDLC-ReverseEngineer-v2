@@ -373,7 +373,7 @@ When saying "A implements interface B", establish the inheritance, protocol, reg
 
 When saying "A owns state B", identify where B is created, changed, and consumed.
 
-## Certainty classification
+## Internal Reasoning Classification
 
 Use:
 
@@ -468,7 +468,11 @@ Before completing this phase, verify:
 
 ## Output Expectations
 
-Return a professional dossier-quality Low-Level Design analysis.
+### Output boundary
+The support and classification mechanisms used during investigation are internal. Do not reproduce evidence annotations, certainty labels, or source-by-source investigation notes in the final Low-Level Design document. Present the resulting design and relationships directly, with natural-language qualifications only where materially necessary.
+
+
+Return a professional, sufficiently detailed Low-Level Design analysis. Cover the concrete structures and interactions needed for implementation understanding without artificially constraining the document length.
 
 Organize the result around the major logical components and concrete implementation structures that realize them.
 
@@ -476,7 +480,7 @@ For each significant component, explain the relevant modules, classes, functions
 
 Include a precise Mermaid diagram when a class, module, sequence, or state diagram materially improves understanding.
 
-Use source artifacts as evidence and identify important paths precisely.
+Use source artifacts to establish the design internally and identify important paths precisely. Do not expose the investigation trail or internal confidence classifications in the final document.
 
 Do not reproduce large sections of source code.
 

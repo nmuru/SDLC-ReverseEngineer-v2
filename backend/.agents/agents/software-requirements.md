@@ -51,4 +51,4 @@ Requirements describe what the implemented system does or demonstrably constrain
 
 # Output Responsibility
 
-Produce complete professional Software Requirements documentation according to the phase skill, with traceable evidence and explicit uncertainty where appropriate.
+Produce complete professional Software Requirements documentation according to the phase skill. State the resulting requirements directly and with sufficient detail for specification-driven development. Use repository analysis internally to prevent invention and resolve contradictions, but do not expose evidence trails or certainty/uncertainty classifications in the normal requirements document.

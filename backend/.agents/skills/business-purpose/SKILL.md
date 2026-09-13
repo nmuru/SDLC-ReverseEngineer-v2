@@ -567,7 +567,13 @@ Use the appropriate conceptual form.
 
 For a business application:
 
-**The repository appears to exist to address [business or operational need] by enabling [core capability or workflow], producing [intended organizational outcome] for [beneficiary].**
+**The business purpose is to address [business or operational need] by enabling [core capability or workflow], producing [intended organizational outcome] for [beneficiary].**
+
+For an enterprise or business application, the final Business Purpose statement should be expressed primarily in business terms: the business need, problem, opportunity, or objective; who or what in the business benefits; and the outcome the software enables. Describe technology only to the extent necessary to explain how the business need is addressed.
+
+The phrase "business purpose" should not be reduced to a description of what the software technically does. Move from the observable capability to the underlying business need and outcome. For example, "provides an online storefront" is a capability; the business purpose may be to give businesses a cost-effective and practical way to establish an online sales channel, when the repository evidence supports that interpretation.
+
+For repositories that are not enterprise or business applications, do not force a business interpretation. Use the appropriate purpose model below and describe the motivating technical, operational, research, educational, demonstrator, developer, or other objective instead.
 
 For infrastructure or developer software:
 
@@ -623,7 +629,7 @@ Do not treat any of the following as sufficient evidence by themselves:
 
 For each major conclusion, identify the relevant repository artifacts.
 
-## Certainty classification
+## Internal Reasoning Classification
 
 Use calibrated conclusions.
 
@@ -700,11 +706,15 @@ If these conditions cannot be satisfied because the repository is incomplete or 
 
 ## Output expectations
 
-Return a professional, concise but insightful Business Purpose analysis.
+### Output boundary
+The certainty and support distinctions used during investigation are internal reasoning controls. Do not reproduce them as labels, metadata, evidence sections, or confidence statements in the normal Business Purpose document. Present the resulting purpose model and conclusions directly. The document may describe material limitations or open questions when they are necessary for an accurate understanding.
+
+
+Return a professional, comprehensive but focused Business Purpose analysis. The depth should be proportional to the complexity and ambiguity of the repository; do not artificially shorten the document. The reasoning and conclusions must be grounded in repository analysis, but the final document should present the resulting purpose model directly rather than reproducing the investigation trail or internal confidence classifications.
 
 Do not reproduce the investigation process.
 
-Synthesize the evidence into a coherent explanation of the repository's motivating purpose.
+Synthesize the repository findings into a coherent explanation of the repository's motivating purpose.
 
 Begin by identifying the most appropriate purpose model:
 
@@ -721,7 +731,7 @@ Begin by identifying the most appropriate purpose model:
 * reference implementation
 * mixed or unknown purpose
 
-Then explain the strongest evidence-backed answer to:
+Then explain the strongest repository-supported answer to:
 
 **"Why was this software created?"**
 

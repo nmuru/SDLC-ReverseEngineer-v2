@@ -339,7 +339,7 @@ For important relationships, prefer evidence from both sides of the boundary whe
 
 For example, if component A is said to call component B, identify the caller and the implementation or interface of B.
 
-## Certainty classification
+## Internal Reasoning Classification
 
 Use:
 
@@ -407,15 +407,19 @@ Before completing this phase, verify:
 
 ## Output Expectations
 
-Return a professional dossier-quality High-Level Design analysis.
+### Output boundary
+Repository support and internal classification of relationships are reasoning mechanisms. Do not reproduce them as evidence annotations or certainty labels in the final High-Level Design document. Present the established design directly and describe material limitations or open questions in natural language when needed.
+
+
+Return a professional, sufficiently detailed High-Level Design analysis. Cover all materially important components, boundaries, interactions, state ownership, and workflows without artificially constraining the document length.
 
 Explain the major logical components, their responsibilities, interfaces, dependencies, state ownership, important workflows, and architectural interactions.
 
 Include a logical component or workflow diagram when it improves understanding, preferably in Mermaid syntax.
 
-Use implementation artifacts as evidence but avoid descending into individual function behavior unless needed to establish a component relationship.
+Use implementation artifacts to establish the design, but avoid descending into individual function behavior unless needed to establish a component relationship. Do not reproduce the investigation trail or internal confidence classifications in the final document.
 
-Explicitly identify important design patterns only when supported by evidence.
+Explicitly identify important design patterns only when the repository analysis establishes them. Do not expose the internal support assessment as a label.
 
 Discuss meaningful coupling, boundary violations, or legacy paths when they are part of the actual design.
 

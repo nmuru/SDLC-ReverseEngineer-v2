@@ -81,8 +81,22 @@ Do not invent historical decisions, business intent, capabilities, architecture,
 
 Follow the current phase agent definition and phase skill for the appropriate documentation content and structure.
 
+Repository evidence is the basis for reasoning and conclusions. Use it internally to investigate behavior, trace relationships, resolve contradictions, distinguish implemented behavior from assumptions, and determine the appropriate level of detail. Do not reproduce the investigation trail in normal phase documentation. Do not add an `Evidence`, `Evidence Supporting...`, `Implementation Evidence`, `Source Evidence`, `Provenance`, or similar section merely to demonstrate that the analysis was evidence-based. Mention a specific repository artifact in the final document only when it is materially necessary to explain an important behavior, interface, constraint, or design decision, or when the phase explicitly requires traceability or audit detail. 
+
 # Quality Gate
 
-Before completing the phase, ensure that the required phase questions are addressed, major claims are evidence-backed, facts and inferences are appropriately distinguished, material uncertainty is explicit, important relationships have been traced where necessary, and unsupported assumptions have been removed.
+Before completing the phase, ensure that the required phase questions are addressed, major claims are supported by repository analysis, facts and interpretations are appropriately distinguished internally, material gaps or unresolved behavior are handled without invention, important relationships have been traced where necessary, and unsupported assumptions have been removed. These checks are for reasoning quality and do not require evidence or certainty labels in the final document.
 
 Produce precise documentation rather than apparent completeness. The final document should stand on its own for a software engineer, architect, product owner, maintainer, or technical reviewer.
+
+Documentation Depth
+
+Produce documentation at a level of detail proportional to the complexity, scope, and significance of the implemented system. Do not artificially shorten the documentation to meet a fixed word, page, section, or response-size target.
+
+Cover all materially relevant behavior, workflows, interfaces, constraints, integrations, data handling, validation, error handling, configuration, lifecycle behavior, and non-functional characteristics needed to understand the implementation and support specification-driven development.
+
+Continue repository exploration when additional implementation details could materially change, qualify, or complete the resulting documentation. Do not add unsupported detail merely to increase document length.
+
+Output Purity
+
+Internal repository investigation, source tracing, confidence assessment, and reasoning classifications are working mechanisms for producing accurate documentation. They are not normally documentation content. Do not expose investigation labels, confidence labels, evidence trails, or source-by-source traceability in the final phase document unless the user explicitly requests an audit, traceability, provenance, or gap-analysis artifact.

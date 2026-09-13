@@ -42,11 +42,13 @@ pnpm-debug.log*
 .env
 .env.*
 !.env.example
+/backend/.env
 
 # ==========================================
 # Temporary application files
 # ==========================================
 output_content/
+/backend/output-content/
 temp/
 tmp/
 cache/

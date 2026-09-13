@@ -254,15 +254,15 @@ Before completing this phase, confirm:
 
 ## Output Expectations
 
-Return a professional dossier-quality Features analysis.
+Return a professional, sufficiently detailed Features analysis. Cover the meaningful capabilities and workflows needed to understand the system without artificially constraining the document length.
 
 Organize the result around coherent functional capabilities and workflows.
 
-For each major feature, explain what it does, who or what triggers it, the meaningful workflow, the resulting outcome, its implementation status, and the strongest supporting repository evidence.
+For each major feature, explain what it does, who or what triggers it, the meaningful workflow, the resulting outcome, and its implementation status. Use repository analysis internally to establish these details; do not reproduce the investigation trail or confidence classifications in the final document.
 
 Include secondary or internal features when they materially contribute to understanding how the system operates.
 
-Separate documented intent from verified implementation.
+Separate documented intent from implemented behavior where they differ, without exposing internal verification labels.
 
 Do not provide detailed architecture or low-level code analysis unless required to establish a feature's behavior. Those topics belong to later phases.
 
@@ -270,4 +270,11 @@ Do not recommend new features or improvements. The purpose of this phase is to r
 
 The final analysis should allow a reader to answer:
 
-"What meaningful things can this system actually do, for whom or what, through which workflows, and with what degree of implementation certainty?"
+"What meaningful things can this system actually do, for whom or what, through which workflows, and what implementation behavior and constraints shape those capabilities?"
+
+
+## Output boundary and depth
+
+Repository support and internal implementation-status classifications are reasoning mechanisms. Do not reproduce evidence trails, certainty/confidence labels, or source-by-source investigation notes in the final Features document.
+
+Cover the meaningful capabilities and workflows needed for comprehensive understanding. Do not artificially constrain the document to a fixed page or word count, and do not add unsupported features merely to make the inventory longer.

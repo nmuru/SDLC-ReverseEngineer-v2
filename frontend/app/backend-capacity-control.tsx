@@ -54,7 +54,7 @@ export default function BackendCapacityControl() {
     };
 
     check();
-    const timer = window.setInterval(check, 3000);
+    const timer = window.setInterval(check, 6000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);
