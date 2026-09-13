@@ -151,7 +151,7 @@ export default function Home() {
       } catch { /* SSE is primary during the original request; polling is the refresh fallback. */ }
     };
     poll();
-    const timer = window.setInterval(poll, 2000);
+    const timer = window.setInterval(poll, 5000);
     return () => { cancelled = true; window.clearInterval(timer); };
   }, [analysisStarted, isDemo, runId, restored, analysisComplete, stopped]);
 
